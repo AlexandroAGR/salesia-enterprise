@@ -28,7 +28,7 @@ INSERT INTO companies (
 VALUES (
     'SalesIA Enterprise',
     '00000000000',
-    'admin@salesia.local',
+    'admin@salesia.com',
     '+51 000 000 000',
     'Lima, Perú'
 )
