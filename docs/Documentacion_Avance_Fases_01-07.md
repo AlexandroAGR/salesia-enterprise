@@ -8,7 +8,8 @@
 | Versión | 1.0 |
 | Fecha | 04 de octubre de 2026 |
 | Estado | Fases 01–07 completadas · Fase 08 en curso |
-| Commits | `c8162f0` (paso 1) · `6cc70d6` (paso 2) |
+| Estructura | Monorepo: `frontend/` · `backend/` · `database/` · `docs/` |
+| Commits | `c8162f0` (paso 1) · `6cc70d6` (paso 2) · reorganización en `frontend/` |
 
 ---
 
@@ -107,10 +108,10 @@ PostgreSQL (migración 001)
 
 ### 3.3 Fase 06 (porción) — Frontend React (commit `6cc70d6`)
 
-**Arquitectura creada**
+**Arquitectura creada** (dentro de `frontend/`)
 
 ```
-src/
+frontend/src/
 ├── App.tsx                     → BrowserRouter + AuthProvider + rutas
 ├── navigation.ts               → mapa rutas/íconos/títulos del sidebar
 ├── lib/api.ts                  → cliente HTTP centralizado
@@ -142,7 +143,7 @@ src/
 | `src/App.test.tsx` (4 tests) | Vitest + Testing Library + jsdom | Redirect a login, login correcto → dashboard, login incorrecto → mensaje de error, rutas privadas protegidas. |
 | Smoke test CRUD (23 aserciones) | pytest-compatible (script con TestClient) | Login, `/me`, 401 sin token, CRUD completo, duplicados → 409, precios negativos → 422, paginación, borrado lógico, aislamiento entre empresas. |
 
-Comandos: `npm test` (frontend) · `backend/.venv/bin/python <smoke>` (backend).
+Comandos: `cd frontend && npm test` · `backend/.venv/bin/python <smoke>` (backend).
 
 ---
 
@@ -178,6 +179,7 @@ Documentación interactiva: <http://localhost:8000/docs>
 ### Frontend
 
 ```bash
+cd frontend
 nvm use 22
 npm install
 npm run dev        # http://localhost:5173 (proxy a :8000)
@@ -209,12 +211,13 @@ psql -U salesia_app -d salesia_enterprise -f database/seeds/002_admin_user.sql
 ### Comandos de calidad
 
 ```bash
+cd frontend
 npm run lint    # ESLint
 npm run build   # tsc -b + vite build
 npm test        # Vitest (4 tests)
 ```
 
-> Nota: si `npm install` vuelve a sufrir el bug de dependencias opcionales de npm (`Cannot find native binding` de rolldown), ejecutar:
+> Nota: si `npm install` vuelve a sufrir el bug de dependencias opcionales de npm (`Cannot find native binding` de rolldown), ejecutar desde `frontend/`:
 > `npm i --no-save @rolldown/binding-linux-x64-gnu@$(node -p "require('./node_modules/rolldown/package.json').version")`
 
 ---
@@ -285,26 +288,37 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 
 ```
 salesia-enterprise/
-├── index.html                     # HTML base (favicon corregido)
-├── package.json                   # scripts: dev, build, lint, test, preview
-├── vite.config.ts                 # proxy /api → :8000
-├── vitest.config.ts               # entorno jsdom para tests
-├── src/                           # FRONTEND (React + TS)
-│   ├── App.tsx                    # router + guards
-│   ├── App.test.tsx               # tests de render
-│   ├── navigation.ts
-│   ├── index.css                  # sistema de diseño completo
-│   ├── lib/api.ts                 # cliente HTTP
-│   ├── types/index.ts
-│   ├── context/                   # auth y búsqueda global
-│   ├── components/                # Sidebar, Topbar, MetricCard, Modal
-│   ├── layouts/AppLayout.tsx
-│   ├── pages/                     # Login, Dashboard, Customers, Products
-│   ├── utils/format.ts
-│   └── test/setup.ts
+├── .gitignore                     # raíz (node_modules, dist, .venv, .env…)
+├── README.md                      # arranque rápido y estado del proyecto
+├── frontend/                      # FRONTEND (React + TS + Vite)
+│   ├── .gitignore
+│   ├── index.html                 # HTML base (favicon corregido)
+│   ├── package.json               # scripts: dev, build, lint, test, preview
+│   ├── package-lock.json
+│   ├── vite.config.ts             # proxy /api → :8000
+│   ├── vitest.config.ts           # entorno jsdom para tests
+│   ├── tsconfig.json · tsconfig.app.json · tsconfig.node.json
+│   ├── eslint.config.js
+│   ├── public/favicon.svg
+│   ├── dist/                      # build de producción (no versionado)
+│   ├── node_modules/              # no versionado
+│   └── src/
+│       ├── App.tsx                # router + guards
+│       ├── App.test.tsx           # tests de render
+│       ├── navigation.ts
+│       ├── index.css              # sistema de diseño completo
+│       ├── lib/api.ts             # cliente HTTP
+│       ├── types/index.ts
+│       ├── context/               # auth y búsqueda global
+│       ├── components/            # Sidebar, Topbar, MetricCard, Modal
+│       ├── layouts/AppLayout.tsx
+│       ├── pages/                 # Login, Dashboard, Customers, Products
+│       ├── utils/format.ts
+│       └── test/setup.ts
 ├── backend/                       # BACKEND (FastAPI)
 │   ├── .env                       # no versionado (gitignored)
 │   ├── .env.example
+│   ├── .venv/                     # no versionado
 │   ├── requirements.txt
 │   └── app/
 │       ├── main.py                # app, CORS, registro de routers
@@ -314,10 +328,12 @@ salesia-enterprise/
 │       ├── models/                # 25 modelos SQLAlchemy
 │       ├── schemas/               # common, auth, customer, product, category, sale*
 │       └── services/              # auth, customer, product, category
-└── database/
-    ├── migrations/001_initial_schema.sql   # 24 tablas
-    └── seeds/001_reference_data.sql        # roles, empresa, categorías, métodos de pago
-        seeds/002_admin_user.sql            # usuario administrador
+├── database/
+│   ├── migrations/001_initial_schema.sql   # 24 tablas
+│   └── seeds/001_reference_data.sql        # roles, empresa, categorías, métodos de pago
+│       seeds/002_admin_user.sql            # usuario administrador
+└── docs/
+    └── Documentacion_Avance_Fases_01-07.md # este documento
 
 * sale.py creado, aún sin router/service.
 ```

@@ -32,6 +32,7 @@ python3 -m venv .venv
 **Frontend** (terminal 2):
 
 ```bash
+cd frontend
 nvm use 22          # Vite 8 requiere Node ≥ 20
 npm install
 npm run dev          # http://localhost:5173  (proxy /api → :8000)
@@ -56,6 +57,7 @@ Configuración en `backend/.env` (plantilla en `backend/.env.example`).
 ## Comandos de calidad
 
 ```bash
+cd frontend
 npm run lint     # ESLint
 npm run build    # typecheck (tsc -b) + build de producción
 npm test         # pruebas de frontend (Vitest + Testing Library)
@@ -64,7 +66,7 @@ npm test         # pruebas de frontend (Vitest + Testing Library)
 ## Estructura
 
 ```
-src/        frontend React (router, contextos, páginas, cliente API)
+frontend/   frontend React (router, contextos, páginas, cliente API, pruebas)
 backend/    API FastAPI (api/ routers · services/ negocio · models/ SQLAlchemy)
 database/   migraciones y seeds SQL
 docs/       documentación técnica por fases
