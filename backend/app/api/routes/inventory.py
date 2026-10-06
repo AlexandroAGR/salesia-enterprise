@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
@@ -14,6 +16,15 @@ router = APIRouter(
     tags=["Inventario"],
     dependencies=[Depends(get_current_user)],
 )
+
+
+def _qty(value) -> str:
+    """Cantidades como string con 3 decimales, igual que el resto de la API.
+
+    Sin esto, los números sueltos (int/float) se serializan como JSON numérico
+    y rompen la consistencia con el resto de endpoints (p. ej. "10.000").
+    """
+    return str(Decimal(str(value)).quantize(Decimal("0.001")))
 
 
 @router.get("", response_model=Page[InventoryOut])
@@ -98,10 +109,10 @@ def create_movement(
         "product_id": movement.product_id,
         "product_name": result["product_name"],
         "movement_type": movement.movement_type,
-        "quantity": movement.quantity,
+        "quantity": _qty(movement.quantity),
         "reason": movement.reason,
         "sale_id": movement.sale_id,
         "created_at": movement.created_at,
-        "previous_quantity": result["previous_quantity"],
-        "new_quantity": result["new_quantity"],
+        "previous_quantity": _qty(result["previous_quantity"]),
+        "new_quantity": _qty(result["new_quantity"]),
     }

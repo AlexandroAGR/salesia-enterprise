@@ -114,7 +114,20 @@ def get_sale_details(db: Session, sale_id: int) -> list[SaleDetail]:
 
 
 def get_payment(db: Session, sale_id: int) -> Payment | None:
-    """Último pago de la venta, con el nombre del método adjunto."""
+    """Pago de la venta para el detalle, con el método adjunto.
+
+    `amount` es la **suma de todos los pagos** de la venta: si se saldó con
+    pagos parciales, el detalle debe mostrar el total pagado (p. ej. 100 +
+    254 = 354.00), no sólo el último pago. El método, referencia y fecha
+    corresponden al último pago registrado.
+    """
+    total = db.execute(
+        select(func.sum(Payment.amount)).where(Payment.sale_id == sale_id)
+    ).scalar_one()
+
+    if total is None:  # sin pagos registrados
+        return None
+
     statement = (
         select(Payment, PaymentMethod.name)
         .join(PaymentMethod, Payment.payment_method_id == PaymentMethod.id)
@@ -124,10 +137,14 @@ def get_payment(db: Session, sale_id: int) -> Payment | None:
     )
     row = db.execute(statement).first()
 
-    if row is None:
+    if row is None:  # pragma: no cover - imposible con pagos existentes
         return None
 
     payment, method_name = row
+    # Se separa de la sesión para poder responder con el total sin que
+    # la mutación en memoria se llegue a persistir en la base de datos.
+    db.expunge(payment)
+    payment.amount = total
     payment.method_name = method_name  # atributo temporal para el router
     return payment
 
