@@ -232,6 +232,13 @@ describe("AnalyticsPage", () => {
 
     // Selección de dataset y variable numérica
     const datasetSelect = await screen.findByLabelText("Seleccionar dataset");
+    // La lista de datasets se carga con debounce (250 ms): esperar a que
+    // exista la opción del dataset 7 antes de hacer change.
+    await waitFor(() => {
+      expect(datasetSelect.querySelectorAll("option").length).toBeGreaterThan(
+        1,
+      );
+    });
     fireEvent.change(datasetSelect, { target: { value: "7" } });
 
     const variableSelect = await screen.findByLabelText("Seleccionar variable");

@@ -5,9 +5,11 @@ continua) y sus observaciones, que son las que alimentan los análisis
 de la Fase 09.
 """
 
+import math
 from datetime import datetime, timezone
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.dataset import Dataset
@@ -184,7 +186,15 @@ def create_variable(
         description=payload.description,
     )
     db.add(variable)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as error:
+        # Carrera entre la comprobación previa y el INSERT: la restricción
+        # única de la BD manda y se traduce al mismo error de negocio.
+        db.rollback()
+        raise DatasetError(
+            f"Ya existe una variable llamada '{payload.name.strip()}'"
+        ) from error
     db.refresh(variable)
     return variable
 
@@ -291,6 +301,13 @@ def add_observations(
                 raise DatasetError(
                     f"La variable '{variable.name}' es numérica: "
                     "usa numeric_value"
+                )
+            # JSON admite 1e400 / NaN, que llegan como inf/nan: no son
+            # serializables de vuelta a JSON/jsonb ni comparables en JS.
+            if not math.isfinite(item.numeric_value):
+                raise DatasetError(
+                    f"La variable '{variable.name}' admite solo valores "
+                    "numéricos finitos"
                 )
             observation = Observation(
                 dataset_id=dataset_id,

@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import {
   ArrowLeft,
   Calculator,
@@ -136,7 +142,7 @@ type StatCardProps = {
   title: string;
   value: string;
   description: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
   color: "blue" | "cyan" | "violet" | "orange";
 };
 
@@ -281,6 +287,9 @@ export default function AnalyticsPage() {
       });
       setHistory(result);
     } catch (caught) {
+      // Se limpia el historial para que la pestaña muestre el error en
+      // lugar de una tabla en blanco o datos obsoletos.
+      setHistory(null);
       setError(
         caught instanceof ApiError
           ? caught.message
@@ -306,7 +315,8 @@ export default function AnalyticsPage() {
   }, []);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => void loadDatasets(), 0);
+    // 250 ms: mismo debounce que usa InventoryPage para la búsqueda.
+    const timer = window.setTimeout(() => void loadDatasets(), 250);
     return () => window.clearTimeout(timer);
   }, [loadDatasets]);
 
@@ -419,7 +429,11 @@ export default function AnalyticsPage() {
       const items =
         variable.data_type === "numeric"
           ? lines.map((line, index) => {
-              const value = Number(line);
+              // En es-PE la coma es el separador decimal: "10,5" = 10.5
+              const normalized = line.includes(".")
+                ? line
+                : line.replace(/,/g, ".");
+              const value = Number(normalized);
               if (!Number.isFinite(value)) {
                 throw new Error(
                   `La línea ${index + 1} no es un número: "${line}"`,
@@ -647,19 +661,28 @@ export default function AnalyticsPage() {
       <div className="tabs">
         <button
           className={`tab ${tab === "datasets" ? "tab-active" : ""}`}
-          onClick={() => setTab("datasets")}
+          onClick={() => {
+            setTab("datasets");
+            setNotice(null);
+          }}
         >
           <Database size={16} /> Datasets
         </button>
         <button
           className={`tab ${tab === "analisis" ? "tab-active" : ""}`}
-          onClick={() => setTab("analisis")}
+          onClick={() => {
+            setTab("analisis");
+            setNotice(null);
+          }}
         >
           <Calculator size={16} /> Análisis
         </button>
         <button
           className={`tab ${tab === "historial" ? "tab-active" : ""}`}
-          onClick={() => setTab("historial")}
+          onClick={() => {
+            setTab("historial");
+            setNotice(null);
+          }}
         >
           <ClipboardList size={16} /> Historial
         </button>
@@ -1445,6 +1468,14 @@ export default function AnalyticsPage() {
                     <td colSpan={5} className="table-state">
                       <Loader2 size={19} className="spin" /> Cargando
                       historial...
+                    </td>
+                  </tr>
+                )}
+
+                {!historyLoading && error && !history && (
+                  <tr>
+                    <td colSpan={5} className="table-state table-state-error">
+                      {error}
                     </td>
                   </tr>
                 )}

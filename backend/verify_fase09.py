@@ -217,6 +217,23 @@ def main() -> int:
         str(wrong_type.status_code),
     )
 
+    infinite = client.post(
+        f"/api/datasets/{dataset_id}/observations",
+        # Body JSON crudo: httpx no serializa Infinity, pero el JSON de
+        # Python sí lo admite al parsear, así que sí puede llegar al servidor.
+        content=(
+            '{"items": [{"variable_id": '
+            f"{monto_id}"
+            ', "numeric_value": Infinity}]}'
+        ),
+        headers={"Content-Type": "application/json", **headers},
+    )
+    check(
+        "Observación no finita (Infinity) → 400",
+        infinite.status_code == 400,
+        str(infinite.status_code),
+    )
+
     detail = client.get(f"/api/datasets/{dataset_id}", headers=headers)
     variables = detail.json().get("variables", [])
     counts = {var["name"]: var["observations_count"] for var in variables}
@@ -417,6 +434,38 @@ def main() -> int:
         str(bad_params.status_code),
     )
 
+    inf_param = client.post(
+        "/api/analyses/random-variable",
+        content=(
+            '{"variable_id": '
+            f"{monto_id}"
+            ', "distribution": "normal",'
+            ' "parameters": {"mu": Infinity, "sigma": 1.0}}'
+        ),
+        headers={"Content-Type": "application/json", **headers},
+    )
+    check(
+        "Parámetro no finito (mu=Infinity) → 400",
+        inf_param.status_code == 400,
+        str(inf_param.status_code),
+    )
+
+    inf_binomial = client.post(
+        "/api/analyses/random-variable",
+        content=(
+            '{"variable_id": '
+            f"{monto_id}"
+            ', "distribution": "binomial",'
+            ' "parameters": {"n": Infinity, "p": 0.5}}'
+        ),
+        headers={"Content-Type": "application/json", **headers},
+    )
+    check(
+        "Binomial con n=Infinity → 400 (no 500)",
+        inf_binomial.status_code == 400,
+        str(inf_binomial.status_code),
+    )
+
     # ---------------------------------------------------------------
     step("6. Probabilidades")
     # ---------------------------------------------------------------
@@ -452,6 +501,23 @@ def main() -> int:
         str(dep_independence),
     )
 
+    # 0.666667² = 0.444444888... → redondeado a 6 decimales daría 0.444445
+    # y un falso positivo de independencia si se compara con el producto
+    # ya redondeado.
+    rounding_case = client.post(
+        "/api/analyses/probability",
+        json={"p_a": 0.666667, "p_b": 0.666667, "p_a_and_b": 0.444445},
+        headers=headers,
+    ).json()
+    round_independence = (metric(rounding_case, "independence") or {}).get(
+        "result_payload", {}
+    )
+    check(
+        "Independencia evaluada sin redondeo previo",
+        round_independence.get("independent") is False,
+        str(round_independence),
+    )
+
     impossible = client.post(
         "/api/analyses/probability",
         json={"p_a": 0.3, "p_b": 0.5, "p_a_and_b": 0.6},
@@ -468,7 +534,7 @@ def main() -> int:
         json={"p_a": 0.6, "p_b": 0.0, "p_a_and_b": 0.0},
         headers=headers,
     )
-    check("P(B)=0 → 422 (schema gt...)", zero_b.status_code in (400, 422), str(zero_b.status_code))
+    check("P(B)=0 → 400 (valida el servicio)", zero_b.status_code == 400, str(zero_b.status_code))
 
     # ---------------------------------------------------------------
     step("7. Teorema de Bayes (criterio de aceptación)")
@@ -567,6 +633,26 @@ def main() -> int:
         inconsistent.status_code == 400,
         str(inconsistent.status_code),
     )
+
+    # 7.4 P(B) minúscula: el redondeo a 6 decimales colapsaría a 0 y
+    # violaría el CHECK (probability_b > 0) de PostgreSQL.
+    tiny = client.post(
+        "/api/analyses/bayes",
+        json={
+            "probability_a": 1e-7,
+            "probability_b_given_a": 1e-7,
+            "probability_b_given_not_a": 1e-7,
+        },
+        headers=headers,
+    )
+    check("Bayes con P(B) minúscula → 201", tiny.status_code == 201, tiny.text)
+    if tiny.status_code == 201:
+        stored_b = (tiny.json().get("bayes") or {}).get("probability_b")
+        check(
+            "P(B) minúscula persistida > 0 (no colapsa a 0)",
+            stored_b is not None and float(stored_b) > 0,
+            str(stored_b),
+        )
 
     # ---------------------------------------------------------------
     step("8. Historial: análisis almacenados")

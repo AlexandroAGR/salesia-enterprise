@@ -86,7 +86,12 @@ def _register_analysis(
     dataset_id: int | None,
     results: list[dict],
 ) -> StatisticalAnalysis:
-    """Persiste el análisis con sus resultados (patrón de la fase 09)."""
+    """Añade el análisis con sus resultados a la transacción actual.
+
+    No confirma: el llamador cierra la transacción única (análisis +
+    filas auxiliares como `bayes_analyses`/`random_variables`) con un
+    solo `commit`, para que nunca quede un análisis a medias.
+    """
     analysis = StatisticalAnalysis(
         company_id=company_id,
         dataset_id=dataset_id,
@@ -110,8 +115,6 @@ def _register_analysis(
             )
         )
 
-    db.commit()
-    db.refresh(analysis)
     return analysis
 
 
@@ -199,20 +202,28 @@ def run_mean_median(
             },
         ],
     )
+    db.commit()
     return get_analysis(db, company_id, analysis.id)
 
 
 # ---------------------------------------------------------------
 # Variables aleatorias
 # ---------------------------------------------------------------
+def _finite(value: float, label: str) -> float:
+    """Rechaza NaN/Infinity: no son serializables a JSON ni a jsonb."""
+    if not math.isfinite(value):
+        raise AnalysisError(f"El parámetro {label} debe ser un número finito")
+    return value
+
+
 def _distribution_stats(
     distribution: str, parameters: dict[str, float]
 ) -> tuple[float, float, dict]:
     """Esperanza y varianza teóricas de la distribución indicada."""
     try:
         if distribution == "uniforme":
-            a = float(parameters["a"])
-            b = float(parameters["b"])
+            a = _finite(float(parameters["a"]), "a")
+            b = _finite(float(parameters["b"]), "b")
             if b <= a:
                 raise AnalysisError(
                     "La distribución uniforme requiere b > a"
@@ -226,7 +237,7 @@ def _distribution_stats(
             }
 
         elif distribution == "bernoulli":
-            p = float(parameters["p"])
+            p = _finite(float(parameters["p"]), "p")
             if not 0 <= p <= 1:
                 raise AnalysisError("La probabilidad p debe estar entre 0 y 1")
             expected = p
@@ -242,8 +253,8 @@ def _distribution_stats(
                 raise AnalysisError(
                     "La distribución binomial requiere n y p"
                 )
-            n_float = float(parameters["n"])
-            p = float(parameters["p"])
+            n_float = _finite(float(parameters["n"]), "n")
+            p = _finite(float(parameters["p"]), "p")
             if n_float != int(n_float) or int(n_float) < 1:
                 raise AnalysisError("El número de ensayos n debe ser >= 1")
             if not 0 <= p <= 1:
@@ -258,8 +269,8 @@ def _distribution_stats(
             }
 
         elif distribution == "normal":
-            mu = float(parameters["mu"])
-            sigma = float(parameters["sigma"])
+            mu = _finite(float(parameters["mu"]), "mu")
+            sigma = _finite(float(parameters["sigma"]), "sigma")
             if sigma <= 0:
                 raise AnalysisError(
                     "La desviación estándar sigma debe ser mayor que cero"
@@ -276,10 +287,16 @@ def _distribution_stats(
             raise AnalysisError(
                 f"Distribución no soportada: {distribution}"
             )
-    except (KeyError, TypeError, ValueError) as error:
+    except (KeyError, TypeError, ValueError, OverflowError) as error:
         raise AnalysisError(
             f"Parámetros inválidos para la distribución {distribution}: {error}"
         ) from error
+
+    if not math.isfinite(expected) or not math.isfinite(variance):
+        raise AnalysisError(
+            "El resultado de la distribución excede el rango numérico "
+            "soportado"
+        )
 
     return expected, variance, {"parameters": normalized, "formulas": formulas}
 
@@ -386,9 +403,12 @@ def run_probability(
 
     p_b_given_a = _round(p_ab / p_a)
     p_a_given_b = _round(p_ab / p_b)
-    product = _round(p_a * p_b)
-    difference = _round(p_ab - product)
-    independent = abs(p_ab - product) <= TOLERANCE
+    # La independencia se evalúa con el producto SIN redondear: redondear
+    # antes daría falsos positivos cuando P(A)·P(B) tiene más de 6 decimales.
+    product_raw = p_a * p_b
+    product = _round(product_raw)
+    difference = _round(p_ab - product_raw)
+    independent = abs(p_ab - product_raw) <= TOLERANCE
 
     interpretation = (
         "P(A ∩ B) coincide con P(A)·P(B): los eventos A y B son "
@@ -434,6 +454,7 @@ def run_probability(
             },
         ],
     )
+    db.commit()
     return get_analysis(db, company_id, analysis.id)
 
 
@@ -477,7 +498,16 @@ def run_bayes(
         )
 
     posterior = min(posterior, 1.0)
+
+    # Redondeo para persistir: si el redondeo colapsara un P(B) > 0 muy
+    # pequeño a 0, se conserva la precisión cruda (CHECK probability_b > 0
+    # de PostgreSQL) y nunca puede superar 1.
     p_b_rounded = _round(p_b)
+    if p_b_rounded <= 0:
+        p_b_rounded = p_b
+    if p_b_rounded > 1:
+        p_b_rounded = 1.0
+
     posterior_rounded = _round(posterior)
 
     explanation = (
