@@ -6,7 +6,6 @@ import {
   ChevronRight,
   Loader2,
   Package,
-  Pencil,
   RefreshCw,
   Search,
 } from "lucide-react";
@@ -25,9 +24,14 @@ const PAGE_SIZE = 10;
 
 type Tab = "stock" | "movimientos";
 
-const emptyMovement = {
+const emptyMovement: {
+  product_id: string;
+  movement_type: InventoryMovementInput["movement_type"];
+  quantity: string;
+  reason: string;
+} = {
   product_id: "",
-  movement_type: "entrada" as const,
+  movement_type: "entrada",
   quantity: "",
   reason: "",
 };
@@ -170,7 +174,7 @@ export default function InventoryPage() {
       setModal(false);
       setForm(emptyMovement);
       await loadStock();
-      if (tab === "movements") await loadMovements();
+      if (tab === "movimientos") await loadMovements();
     } catch (caught) {
       setFormError(
         caught instanceof ApiError

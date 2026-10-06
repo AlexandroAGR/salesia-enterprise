@@ -7,7 +7,6 @@ import {
   useLocation,
 } from "react-router-dom";
 import {
-  Boxes,
   ChartNoAxesCombined,
   CircleHelp,
   Command,
@@ -16,7 +15,6 @@ import {
   Lightbulb,
   Loader2,
   Settings,
-  ShoppingCart,
 } from "lucide-react";
 import { AuthProvider } from "./context/AuthContext";
 import { useAuth } from "./context/auth-context";

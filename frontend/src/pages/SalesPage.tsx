@@ -46,8 +46,6 @@ type CartItem = {
   stock: string;
 };
 
-const emptyCustomer = { full_name: "", document_number: "" };
-
 const round2 = (value: number) => Math.round(value * 100) / 100;
 
 const statusMeta: Record<Sale["status"], { label: string; cls: string }> = {
