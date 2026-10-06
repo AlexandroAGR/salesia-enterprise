@@ -1,5 +1,5 @@
-import { Link, useLocation } from "react-router-dom";
-import { Bell, Menu, Search } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Bell, LogOut, Menu, Search } from "lucide-react";
 import { useAuth } from "../context/auth-context";
 import { useSearch } from "../context/search-context";
 import { titleForPath } from "../navigation";
@@ -10,11 +10,17 @@ type TopbarProps = {
 };
 
 export default function Topbar({ onOpenMenu }: TopbarProps) {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { search, setSearch } = useSearch();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const avatar = initials(user?.full_name ?? "Usuario") || "US";
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login", { replace: true });
+  };
 
   return (
     <header className="topbar">
@@ -26,6 +32,7 @@ export default function Topbar({ onOpenMenu }: TopbarProps) {
         >
           <Menu size={21} />
         </button>
+
         <div className="breadcrumb">
           <span>Workspace</span>
           <span className="breadcrumb-separator">/</span>
@@ -43,6 +50,7 @@ export default function Topbar({ onOpenMenu }: TopbarProps) {
             aria-label="Buscar en el panel"
           />
         </label>
+
         <Link
           to="/ayuda"
           className="icon-button notification-button"
@@ -51,7 +59,21 @@ export default function Topbar({ onOpenMenu }: TopbarProps) {
           <Bell size={19} />
           <span className="notification-dot" />
         </Link>
-        <div className="topbar-avatar">{avatar}</div>
+
+        <div className="topbar-avatar" title={user?.full_name ?? "Usuario"}>
+          {avatar}
+        </div>
+
+        <button
+          type="button"
+          className="logout-button"
+          onClick={handleLogout}
+          aria-label="Cerrar sesión"
+          title="Cerrar sesión"
+        >
+          <LogOut size={18} />
+          <span>Cerrar sesión</span>
+        </button>
       </div>
     </header>
   );

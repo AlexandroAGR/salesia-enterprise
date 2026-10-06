@@ -355,6 +355,9 @@ CREATE TABLE inventory_movements (
     movement_type VARCHAR(20) NOT NULL
         CHECK (
             movement_type IN (
+                'entrada',
+                'salida',
+                'ajuste',
                 'in',
                 'out',
                 'adjustment',

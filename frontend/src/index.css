@@ -2242,3 +2242,37 @@ textarea.form-input {
     flex-wrap: wrap;
   }
 }
+
+.logout-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border-color, #e5e7eb);
+  background: transparent;
+  color: inherit;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+  transition: 0.2s ease;
+}
+
+.logout-button:hover {
+  background: rgba(239, 68, 68, 0.08);
+  color: #dc2626;
+  border-color: rgba(239, 68, 68, 0.25);
+}
+
+.logout-button svg {
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .logout-button span {
+    display: none;
+  }
+
+  .logout-button {
+    padding: 8px;
+  }
+}

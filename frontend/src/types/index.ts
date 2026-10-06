@@ -73,3 +73,96 @@ export type ProductInput = {
 };
 
 export const DOCUMENT_TYPES = ["DNI", "CE", "RUC", "PASAPORTE"];
+
+
+// ---------------------------------------------------------------
+// Fase 08 · Ventas, pagos e inventario
+// ---------------------------------------------------------------
+export interface Sale {
+  id: number;
+  sale_number: string;
+  status: "draft" | "pending" | "completed" | "cancelled" | "refunded";
+  currency: string;
+  customer_id: number | null;
+  customer_name: string | null;
+  subtotal: string;
+  discount_amount: string;
+  tax_amount: string;
+  total_amount: string;
+  notes: string | null;
+  sold_at: string;
+  created_at: string;
+}
+
+export interface SaleItem {
+  product_id: number;
+  product_name: string;
+  quantity: string;
+  unit_price: string;
+  discount_amount: string;
+  line_total: string;
+}
+
+export interface SalePayment {
+  payment_method_id: number;
+  payment_method_name: string;
+  amount: string;
+  status: string;
+  reference: string | null;
+  paid_at: string | null;
+}
+
+export interface SaleDetail extends Sale {
+  items: SaleItem[];
+  payment: SalePayment | null;
+}
+
+export type SaleItemInput = {
+  product_id: number;
+  quantity: number;
+  discount_amount: number;
+};
+
+export type SaleInput = {
+  customer_id: number | null;
+  items: SaleItemInput[];
+  discount_amount: number;
+  tax_rate: number;
+  payment: { payment_method_id: number; reference?: string | null } | null;
+  notes?: string | null;
+};
+
+export interface PaymentMethod {
+  id: number;
+  name: string;
+  code: string;
+  is_active: boolean;
+}
+
+export interface InventoryItem {
+  product_id: number;
+  sku: string;
+  product_name: string;
+  category_name: string | null;
+  quantity_on_hand: string;
+  minimum_quantity: string;
+  low_stock: boolean;
+}
+
+export interface InventoryMovement {
+  id: number;
+  product_id: number;
+  product_name: string;
+  movement_type: "entrada" | "salida" | "ajuste";
+  quantity: string;
+  reason: string | null;
+  sale_id: number | null;
+  created_at: string;
+}
+
+export type InventoryMovementInput = {
+  product_id: number;
+  movement_type: "entrada" | "salida" | "ajuste";
+  quantity: number;
+  reason?: string | null;
+};

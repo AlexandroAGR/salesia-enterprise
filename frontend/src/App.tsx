@@ -26,6 +26,8 @@ import DashboardPage from "./pages/DashboardPage";
 import LoginPage from "./pages/LoginPage";
 import ProductsPage from "./pages/ProductsPage";
 import "./index.css";
+import InventoryPage from "./pages/InventoryPage";
+import SalesPage from "./pages/SalesPage";
 
 function FullScreenLoader({ label }: { label: string }) {
   return (
@@ -106,16 +108,7 @@ export default function App() {
                 />
               }
             />
-            <Route
-              path="/ventas"
-              element={
-                <ModulePlaceholder
-                  title="Ventas"
-                  icon={<ShoppingCart size={29} />}
-                  description="Registro de ventas con detalle, descuentos, impuestos, pagos y actualización automática de inventario."
-                />
-              }
-            />
+            <Route path="/ventas" element={<SalesPage />} />
             <Route
               path="/pedidos"
               element={
@@ -126,16 +119,7 @@ export default function App() {
                 />
               }
             />
-            <Route
-              path="/inventario"
-              element={
-                <ModulePlaceholder
-                  title="Inventario"
-                  icon={<Boxes size={29} />}
-                  description="Existencias por producto, entradas, salidas y trazabilidad de movimientos."
-                />
-              }
-            />
+            <Route path="/inventario" element={<InventoryPage />} />
             <Route
               path="/pagos"
               element={

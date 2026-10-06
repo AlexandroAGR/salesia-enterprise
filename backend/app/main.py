@@ -11,6 +11,9 @@ from app.api.auth import router as auth_router
 from app.api.categories import router as categories_router
 from app.api.customers import router as customers_router
 from app.api.products import router as products_router
+from app.api.routes.sales import router as sales_router
+from app.api.routes.inventory import router as inventory_router
+from app.api.routes.payments import router as payments_router
 
 
 app = FastAPI(
@@ -41,6 +44,9 @@ app.include_router(auth_router)
 app.include_router(customers_router)
 app.include_router(categories_router)
 app.include_router(products_router)
+app.include_router(sales_router)
+app.include_router(inventory_router)
+app.include_router(payments_router)
 
 
 @app.get("/", tags=["Sistema"])

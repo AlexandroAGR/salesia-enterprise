@@ -82,6 +82,7 @@ class InventoryMovementInput(BaseModel):
     movement_type: str = Field(pattern="^(entrada|salida|ajuste)$")
     quantity: Decimal = Field(gt=0, max_digits=12, decimal_places=3)
     reason: str | None = Field(default=None, max_length=255)
+    sale_id: int | None = None
 
 
 class InventoryMovementOut(BaseModel):
