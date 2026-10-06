@@ -7,7 +7,6 @@ import {
   useLocation,
 } from "react-router-dom";
 import {
-  ChartNoAxesCombined,
   CircleHelp,
   Command,
   CreditCard,
@@ -19,6 +18,7 @@ import {
 import { AuthProvider } from "./context/AuthContext";
 import { useAuth } from "./context/auth-context";
 import AppLayout, { ModulePlaceholder } from "./layouts/AppLayout";
+import AnalyticsPage from "./pages/AnalyticsPage";
 import CustomersPage from "./pages/CustomersPage";
 import DashboardPage from "./pages/DashboardPage";
 import LoginPage from "./pages/LoginPage";
@@ -86,16 +86,7 @@ export default function App() {
             <Route path="/clientes" element={<CustomersPage />} />
             <Route path="/productos" element={<ProductsPage />} />
 
-            <Route
-              path="/analytics"
-              element={
-                <ModulePlaceholder
-                  title="Analytics"
-                  icon={<ChartNoAxesCombined size={29} />}
-                  description="KPIs, ventas por periodo, producto y vendedor, ticket promedio, media y mediana con filtros por periodo, sucursal, vendedor y categoría."
-                />
-              }
-            />
+            <Route path="/analytics" element={<AnalyticsPage />} />
             <Route
               path="/insights"
               element={

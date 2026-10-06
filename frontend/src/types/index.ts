@@ -166,3 +166,84 @@ export type InventoryMovementInput = {
   quantity: number;
   reason?: string | null;
 };
+
+// ---------------------------------------------------------------
+// Fase 09 – Motor estadístico (Semana 07)
+// ---------------------------------------------------------------
+export type VariableType = "cualitativa" | "discreta" | "continua";
+export type DataType = "numeric" | "text";
+
+export interface Dataset {
+  id: number;
+  name: string;
+  source_type: string;
+  description: string | null;
+  variables_count: number;
+  created_at: string;
+}
+
+export interface DatasetVariable {
+  id: number;
+  dataset_id: number;
+  name: string;
+  data_type: DataType;
+  variable_type: VariableType;
+  description: string | null;
+  observations_count: number;
+}
+
+export interface DatasetDetail extends Dataset {
+  variables: DatasetVariable[];
+}
+
+export type DatasetInput = {
+  name: string;
+  source_type: string;
+  description?: string | null;
+};
+
+export type DatasetVariableInput = {
+  name: string;
+  data_type: DataType;
+  variable_type: VariableType;
+  description?: string | null;
+};
+
+export type ObservationInput = {
+  variable_id: number;
+  numeric_value?: number | null;
+  text_value?: string | null;
+};
+
+export interface StatisticalResult {
+  id: number;
+  metric_name: string;
+  numeric_result: number | null;
+  result_payload: Record<string, unknown>;
+}
+
+export interface BayesResult {
+  probability_a: number;
+  probability_b_given_a: number;
+  probability_b: number;
+  posterior_probability: number;
+  explanation: string | null;
+}
+
+export type AnalysisType =
+  | "mean_median"
+  | "random_variable"
+  | "probability"
+  | "bayes";
+
+export interface StatisticalAnalysis {
+  id: number;
+  analysis_type: AnalysisType;
+  dataset_id: number | null;
+  dataset_name: string | null;
+  status: string;
+  parameters: Record<string, unknown>;
+  created_at: string;
+  results: StatisticalResult[];
+  bayes: BayesResult | null;
+}
