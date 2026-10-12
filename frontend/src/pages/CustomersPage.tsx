@@ -12,8 +12,10 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";import 
   Users,
 } from "lucide-react";
 import Modal from "../components/Modal";
+import { useAuth } from "../context/auth-context";
 import { useSearch } from "../context/search-context";
 import { api, ApiError } from "../lib/api";
+import { can } from "../permissions";
 import { DOCUMENT_TYPES, type Customer, type CustomerInput, type Page } from "../types";
 import { formatDate, initials } from "../utils/format";
 
@@ -29,6 +31,8 @@ const emptyForm = {
 };
 
 export default function CustomersPage() {
+  const { user } = useAuth();
+  const canCreateCustomer = can(user?.role, "customers:create");
   const { search, setSearch } = useSearch();
 
   const [page, setPage] = useState(1);
@@ -177,10 +181,12 @@ export default function CustomersPage() {
             <RefreshCw size={16} className={loading ? "spin" : ""} />
             <span>Actualizar</span>
           </button>
-          <button className="button-primary" onClick={openCreate}>
-            <Plus size={17} />
-            Nuevo cliente
-          </button>
+          {canCreateCustomer && (
+            <button className="button-primary" onClick={openCreate}>
+              <Plus size={17} />
+              Nuevo cliente
+            </button>
+          )}
         </div>
       </section>
 
@@ -281,29 +287,31 @@ export default function CustomersPage() {
                     </span>
                   </td>
                   <td>
-                    <div className="row-actions">
-                      <button
-                        className="icon-button"
-                        aria-label="Editar cliente"
-                        onClick={() => openEdit(customer)}
-                      >
-                        <Pencil size={16} />
-                      </button>
-                      {customer.is_active && (
+                    {canCreateCustomer && (
+                      <div className="row-actions">
                         <button
                           className="icon-button"
-                          aria-label="Desactivar cliente"
-                          disabled={deleting === customer.id}
-                          onClick={() => handleDelete(customer)}
+                          aria-label="Editar cliente"
+                          onClick={() => openEdit(customer)}
                         >
-                          {deleting === customer.id ? (
-                            <Loader2 size={16} className="spin" />
-                          ) : (
-                            <Trash2 size={16} />
-                          )}
+                          <Pencil size={16} />
                         </button>
-                      )}
-                    </div>
+                        {customer.is_active && (
+                          <button
+                            className="icon-button"
+                            aria-label="Desactivar cliente"
+                            disabled={deleting === customer.id}
+                            onClick={() => handleDelete(customer)}
+                          >
+                            {deleting === customer.id ? (
+                              <Loader2 size={16} className="spin" />
+                            ) : (
+                              <Trash2 size={16} />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

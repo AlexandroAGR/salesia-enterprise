@@ -14,8 +14,10 @@ import {
   Trash2,
 } from "lucide-react";
 import Modal from "../components/Modal";
+import { useAuth } from "../context/auth-context";
 import { useSearch } from "../context/search-context";
 import { api, ApiError } from "../lib/api";
+import { can } from "../permissions";
 import type {
   Category,
   CategoryInput,
@@ -44,6 +46,10 @@ const emptyCategory = {
 type Tab = "productos" | "categorias";
 
 export default function ProductsPage() {
+  const { user } = useAuth();
+  const canManageProducts =
+    can(user?.role, "products:create") ||
+    can(user?.role, "categories:create");
   const { search, setSearch } = useSearch();
   const [tab, setTab] = useState<Tab>("productos");
 
@@ -296,13 +302,17 @@ export default function ProductsPage() {
             <RefreshCw size={16} className={loading ? "spin" : ""} />
             <span>Actualizar</span>
           </button>
-          <button
-            className="button-primary"
-            onClick={tab === "productos" ? openProductCreate : openCategoryCreate}
-          >
-            <Plus size={17} />
-            {tab === "productos" ? "Nuevo producto" : "Nueva categoría"}
-          </button>
+          {canManageProducts && (
+            <button
+              className="button-primary"
+              onClick={
+                tab === "productos" ? openProductCreate : openCategoryCreate
+              }
+            >
+              <Plus size={17} />
+              {tab === "productos" ? "Nuevo producto" : "Nueva categoría"}
+            </button>
+          )}
         </div>
       </section>
 
@@ -434,29 +444,31 @@ export default function ProductsPage() {
                       </span>
                     </td>
                     <td>
-                      <div className="row-actions">
-                        <button
-                          className="icon-button"
-                          aria-label="Editar producto"
-                          onClick={() => openProductEdit(product)}
-                        >
-                          <Pencil size={16} />
-                        </button>
-                        {product.is_active && (
+                      {canManageProducts && (
+                        <div className="row-actions">
                           <button
                             className="icon-button"
-                            aria-label="Desactivar producto"
-                            disabled={deleting === product.id}
-                            onClick={() => handleProductDelete(product)}
+                            aria-label="Editar producto"
+                            onClick={() => openProductEdit(product)}
                           >
-                            {deleting === product.id ? (
-                              <Loader2 size={16} className="spin" />
-                            ) : (
-                              <Trash2 size={16} />
-                            )}
+                            <Pencil size={16} />
                           </button>
-                        )}
-                      </div>
+                          {product.is_active && (
+                            <button
+                              className="icon-button"
+                              aria-label="Desactivar producto"
+                              disabled={deleting === product.id}
+                              onClick={() => handleProductDelete(product)}
+                            >
+                              {deleting === product.id ? (
+                                <Loader2 size={16} className="spin" />
+                              ) : (
+                                <Trash2 size={16} />
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -561,27 +573,29 @@ export default function ProductsPage() {
                         {formatDate(category.created_at)}
                       </td>
                       <td>
-                        <div className="row-actions">
-                          <button
-                            className="icon-button"
-                            aria-label="Editar categoría"
-                            onClick={() => openCategoryEdit(category)}
-                          >
-                            <Pencil size={16} />
-                          </button>
-                          <button
-                            className="icon-button"
-                            aria-label="Desactivar categoría"
-                            disabled={deleting === category.id}
-                            onClick={() => handleCategoryDelete(category)}
-                          >
-                            {deleting === category.id ? (
-                              <Loader2 size={16} className="spin" />
-                            ) : (
-                              <Trash2 size={16} />
-                            )}
-                          </button>
-                        </div>
+                        {canManageProducts && (
+                          <div className="row-actions">
+                            <button
+                              className="icon-button"
+                              aria-label="Editar categoría"
+                              onClick={() => openCategoryEdit(category)}
+                            >
+                              <Pencil size={16} />
+                            </button>
+                            <button
+                              className="icon-button"
+                              aria-label="Desactivar categoría"
+                              disabled={deleting === category.id}
+                              onClick={() => handleCategoryDelete(category)}
+                            >
+                              {deleting === category.id ? (
+                                <Loader2 size={16} className="spin" />
+                              ) : (
+                                <Trash2 size={16} />
+                              )}
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}

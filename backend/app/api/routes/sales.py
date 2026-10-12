@@ -1,12 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_current_user, require_permission
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.common import Page
 from app.schemas.sale import SaleCreate, SaleDetailOut, SaleOut
 from app.services import sale_service
+from app.services.audit_service import record_audit
 from app.services.sale_service import SaleError
 
 router = APIRouter(
@@ -154,8 +155,10 @@ def get_sale(
 )
 def create_sale(
     payload: SaleCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("sales:write")),
 ):
     try:
         sale = sale_service.create_sale(
@@ -166,6 +169,16 @@ def create_sale(
         )
     except SaleError as error:
         raise _http_error(error) from error
+
+    record_audit(
+        db,
+        user=current_user,
+        action="sale.create",
+        entity_type="sale",
+        entity_id=sale.id,
+        request=request,
+        details={"sale_number": sale.sale_number, "total": str(sale.total_amount)},
+    )
 
     # Devolvemos la venta recién creada con su detalle completo
     return get_sale(sale.id, db, current_user)

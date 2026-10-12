@@ -11,6 +11,7 @@ export interface SessionUser {
   full_name: string;
   company_id: number;
   role_id: number;
+  role: string | null;
   is_active: boolean;
 }
 

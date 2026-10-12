@@ -1,9 +1,9 @@
 """Endpoints de reportes – Fase 12."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_current_user, require_permission
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.common import Page
@@ -14,6 +14,7 @@ from app.schemas.report import (
     ReportTypeInfoOut,
 )
 from app.services import report_service
+from app.services.audit_service import record_audit
 from app.services.report_service import ReportError
 
 router = APIRouter(
@@ -32,7 +33,9 @@ def _http_error(error: ReportError) -> HTTPException:
 
 
 @router.get("/types", response_model=list[ReportTypeInfoOut])
-def list_types() -> list[ReportTypeInfoOut]:
+def list_types(
+    _: User = Depends(require_permission("reports:view")),
+) -> list[ReportTypeInfoOut]:
     """Catálogo de reportes disponibles."""
     return report_service.types_catalog()
 
@@ -44,16 +47,30 @@ def list_types() -> list[ReportTypeInfoOut]:
 )
 def generate_report(
     payload: ReportGenerateIn,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("reports:generate")),
 ) -> ReportOut:
     """Calcula un reporte y guarda su instantánea en el histórico."""
     try:
-        return report_service.generate(
+        report = report_service.generate(
             db, current_user.company_id, current_user.id, payload
         )
     except ReportError as error:
         raise _http_error(error) from None
+
+    record_audit(
+        db,
+        user=current_user,
+        action="report.generate",
+        entity_type="report",
+        entity_id=report.get("id"),
+        request=request,
+        details={"report_type": payload.report_type},
+    )
+
+    return report
 
 
 @router.get("", response_model=Page[ReportSummaryOut])
@@ -65,6 +82,7 @@ def list_reports(
     page_size: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("reports:view")),
 ) -> Page[ReportSummaryOut]:
     """Histórico paginado de reportes con filtro opcional por tipo."""
     try:
@@ -87,6 +105,7 @@ def get_report(
     report_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("reports:view")),
 ) -> ReportOut:
     """Instantánea completa de un reporte guardado."""
     result = report_service.get_report(

@@ -1,12 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_current_user, require_permission
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.common import Page
 from app.schemas.product import ProductCreate, ProductOut, ProductUpdate
 from app.services import category_service, product_service
+from app.services.audit_service import record_audit
 
 router = APIRouter(
     prefix="/api/products",
@@ -30,6 +31,7 @@ def list_products(
     include_inactive: bool = Query(default=False),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("products:view")),
 ):
     items, total = product_service.list_products(
         db,
@@ -54,6 +56,7 @@ def get_product(
     product_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("products:view")),
 ):
     result = product_service.get_product(
         db, current_user.company_id, product_id
@@ -72,8 +75,10 @@ def get_product(
 @router.post("", response_model=ProductOut, status_code=status.HTTP_201_CREATED)
 def create_product(
     payload: ProductCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("products:write")),
 ):
     existing = product_service.get_product_by_sku(
         db, current_user.company_id, payload.sku
@@ -98,6 +103,17 @@ def create_product(
     product = product_service.create_product(
         db, current_user.company_id, payload
     )
+
+    record_audit(
+        db,
+        user=current_user,
+        action="product.create",
+        entity_type="product",
+        entity_id=product.id,
+        request=request,
+        details={"sku": product.sku, "name": product.name},
+    )
+
     result = product_service.get_product(
         db, current_user.company_id, product.id
     )
@@ -109,8 +125,10 @@ def create_product(
 def update_product(
     product_id: int,
     payload: ProductUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("products:write")),
 ):
     result = product_service.get_product(
         db, current_user.company_id, product_id
@@ -146,6 +164,17 @@ def update_product(
             )
 
     product = product_service.update_product(db, product, payload)
+
+    record_audit(
+        db,
+        user=current_user,
+        action="product.update",
+        entity_type="product",
+        entity_id=product_id,
+        request=request,
+        details={"fields": sorted(data.keys())},
+    )
+
     result = product_service.get_product(
         db, current_user.company_id, product.id
     )
@@ -156,8 +185,10 @@ def update_product(
 @router.delete("/{product_id}")
 def deactivate_product(
     product_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("products:write")),
 ):
     result = product_service.get_product(
         db, current_user.company_id, product_id
@@ -170,6 +201,18 @@ def deactivate_product(
         )
 
     product, _ = result
+    product_sku = product.sku
+
     product_service.update_product(db, product, ProductUpdate(is_active=False))
+
+    record_audit(
+        db,
+        user=current_user,
+        action="product.delete",
+        entity_type="product",
+        entity_id=product_id,
+        request=request,
+        details={"sku": product_sku},
+    )
 
     return {"id": product_id, "status": "inactive"}

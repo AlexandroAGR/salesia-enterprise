@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_current_user, require_permission
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.common import Page
@@ -16,6 +16,7 @@ from app.schemas.dataset import (
     ObservationsCreate,
 )
 from app.services import dataset_service
+from app.services.audit_service import record_audit
 from app.services.dataset_service import DatasetError
 
 router = APIRouter(
@@ -70,6 +71,7 @@ def list_datasets(
     page_size: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("datasets:view")),
 ):
     items, total = dataset_service.list_datasets(
         db,
@@ -90,12 +92,25 @@ def list_datasets(
 )
 def create_dataset(
     payload: DatasetCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("datasets:write")),
 ):
     dataset = dataset_service.create_dataset(
         db, current_user.company_id, current_user.id, payload
     )
+
+    record_audit(
+        db,
+        user=current_user,
+        action="dataset.create",
+        entity_type="dataset",
+        entity_id=dataset.id,
+        request=request,
+        details={"name": dataset.name},
+    )
+
     return _detail_out(dataset, [])
 
 
@@ -104,6 +119,7 @@ def get_dataset(
     dataset_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("datasets:view")),
 ):
     try:
         dataset = dataset_service.get_dataset(
@@ -119,8 +135,10 @@ def get_dataset(
 @router.delete("/{dataset_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_dataset(
     dataset_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("datasets:write")),
 ):
     try:
         dataset_service.delete_dataset(
@@ -128,6 +146,15 @@ def delete_dataset(
         )
     except DatasetError as error:
         raise _http_error(error) from error
+
+    record_audit(
+        db,
+        user=current_user,
+        action="dataset.delete",
+        entity_type="dataset",
+        entity_id=dataset_id,
+        request=request,
+    )
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -142,6 +169,7 @@ def create_variable(
     payload: DatasetVariableCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("datasets:write")),
 ):
     try:
         variable = dataset_service.create_variable(
@@ -171,6 +199,7 @@ def update_variable(
     payload: DatasetVariableUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("datasets:write")),
 ):
     try:
         variable = dataset_service.update_variable(
@@ -199,6 +228,7 @@ def add_observations(
     payload: ObservationsCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("datasets:write")),
 ):
     try:
         created = dataset_service.add_observations(
@@ -221,6 +251,7 @@ def list_observations(
     page_size: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("datasets:view")),
 ):
     try:
         items, total = dataset_service.list_observations(

@@ -1,12 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_current_user, require_permission
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.common import Page
 from app.schemas.customer import CustomerCreate, CustomerOut, CustomerUpdate
 from app.services import customer_service
+from app.services.audit_service import record_audit
 
 router = APIRouter(
     prefix="/api/customers",
@@ -23,6 +24,7 @@ def list_customers(
     include_inactive: bool = Query(default=False),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("customers:view")),
 ):
     items, total = customer_service.list_customers(
         db,
@@ -48,6 +50,7 @@ def get_customer(
     customer_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("customers:view")),
 ):
     customer = customer_service.get_customer(
         db, current_user.company_id, customer_id
@@ -65,8 +68,10 @@ def get_customer(
 @router.post("", response_model=CustomerOut, status_code=status.HTTP_201_CREATED)
 def create_customer(
     payload: CustomerCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("customers:write")),
 ):
     existing = customer_service.get_customer_by_document(
         db,
@@ -84,6 +89,20 @@ def create_customer(
     customer = customer_service.create_customer(
         db, current_user.company_id, payload
     )
+
+    record_audit(
+        db,
+        user=current_user,
+        action="customer.create",
+        entity_type="customer",
+        entity_id=customer.id,
+        request=request,
+        details={
+            "full_name": customer.full_name,
+            "document_number": customer.document_number,
+        },
+    )
+
     return CustomerOut.model_validate(customer)
 
 
@@ -91,8 +110,10 @@ def create_customer(
 def update_customer(
     customer_id: int,
     payload: CustomerUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("customers:write")),
 ):
     customer = customer_service.get_customer(
         db, current_user.company_id, customer_id
@@ -123,14 +144,27 @@ def update_customer(
         )
 
     customer = customer_service.update_customer(db, customer, payload)
+
+    record_audit(
+        db,
+        user=current_user,
+        action="customer.update",
+        entity_type="customer",
+        entity_id=customer_id,
+        request=request,
+        details={"fields": sorted(data.keys())},
+    )
+
     return CustomerOut.model_validate(customer)
 
 
 @router.delete("/{customer_id}")
 def deactivate_customer(
     customer_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("customers:write")),
 ):
     customer = customer_service.get_customer(
         db, current_user.company_id, customer_id
@@ -142,8 +176,20 @@ def deactivate_customer(
             detail="Cliente no encontrado",
         )
 
+    customer_name = customer.full_name
+
     customer_service.update_customer(
         db, customer, CustomerUpdate(is_active=False)
+    )
+
+    record_audit(
+        db,
+        user=current_user,
+        action="customer.delete",
+        entity_type="customer",
+        entity_id=customer_id,
+        request=request,
+        details={"full_name": customer_name},
     )
 
     return {"id": customer_id, "status": "inactive"}

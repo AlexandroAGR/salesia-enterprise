@@ -10,8 +10,8 @@ reglas de negocio.
 Requisitos:
   - Backend corriendo en :8000 con seeds (runner SQLite o PostgreSQL).
   - Ejecutarlo el PRIMERO sobre una BD fresca; después se lanzan como
-    regresión verify_fase11, verify_fase10, verify_fase09 y
-    verify_fase08.
+    regresión verify_fase11, verify_fase10, verify_fase09,
+    verify_fase08 y, al final, verify_fase13.
 
 Uso:
   PYTHONPATH=$PWD .venv/bin/python verify_fase12.py

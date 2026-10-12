@@ -1,13 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_current_user, require_permission
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.common import Page
 from app.schemas.payment import PaymentCreate, PaymentResponse
 from app.schemas.sale import PaymentMethodOut
 from app.services import payment_service
+from app.services.audit_service import record_audit
 from app.services.payment_service import PaymentError
 
 router = APIRouter(
@@ -38,6 +39,7 @@ def _payment_out(payment, sale_number: str | None = None) -> PaymentResponse:
 def list_payment_methods(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("payments:view")),
 ):
     methods = payment_service.list_payment_methods(
         db, current_user.company_id
@@ -63,6 +65,7 @@ def list_payments(
     page_size: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("payments:view")),
 ):
     rows, total = payment_service.list_payments(
         db,
@@ -88,8 +91,10 @@ def list_payments(
 )
 def create_payment(
     payload: PaymentCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("payments:write")),
 ):
     try:
         payment = payment_service.register_payment(
@@ -105,5 +110,15 @@ def create_payment(
             else status.HTTP_409_CONFLICT
         )
         raise HTTPException(status_code=code, detail=message) from error
+
+    record_audit(
+        db,
+        user=current_user,
+        action="payment.create",
+        entity_type="payment",
+        entity_id=payment.id,
+        request=request,
+        details={"sale_id": payment.sale_id, "amount": str(payment.amount)},
+    )
 
     return _payment_out(payment)

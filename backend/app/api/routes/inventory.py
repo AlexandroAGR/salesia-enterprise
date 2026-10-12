@@ -1,14 +1,15 @@
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_current_user, require_permission
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.common import Page
 from app.schemas.sale import InventoryMovementInput, InventoryOut
 from app.services import inventory_service
+from app.services.audit_service import record_audit
 from app.services.inventory_service import InventoryError
 
 router = APIRouter(
@@ -36,6 +37,7 @@ def list_inventory(
     page_size: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("inventory:view")),
 ):
     items, total = inventory_service.list_inventory(
         db,
@@ -62,6 +64,7 @@ def list_movements(
     page_size: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("inventory:view")),
 ):
     items, total = inventory_service.list_movements(
         db,
@@ -83,8 +86,10 @@ def list_movements(
 )
 def create_movement(
     payload: InventoryMovementInput,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("inventory:write")),
 ):
     try:
         result = inventory_service.apply_movement(
@@ -103,6 +108,20 @@ def create_movement(
         raise HTTPException(status_code=code, detail=message) from error
 
     movement = result.pop("movement")
+
+    record_audit(
+        db,
+        user=current_user,
+        action="inventory.movement",
+        entity_type="inventory_movement",
+        entity_id=movement.id,
+        request=request,
+        details={
+            "product_id": movement.product_id,
+            "movement_type": movement.movement_type,
+            "quantity": str(movement.quantity),
+        },
+    )
 
     return {
         "id": movement.id,

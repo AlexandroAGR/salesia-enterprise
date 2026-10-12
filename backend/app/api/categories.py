@@ -1,11 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_current_user, require_permission
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.category import CategoryCreate, CategoryOut, CategoryUpdate
 from app.services import category_service
+from app.services.audit_service import record_audit
 
 router = APIRouter(
     prefix="/api/categories",
@@ -20,6 +21,7 @@ def list_categories(
     include_inactive: bool = Query(default=False),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("products:view")),
 ):
     items = category_service.list_categories(
         db,
@@ -35,6 +37,7 @@ def get_category(
     category_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("products:view")),
 ):
     category = category_service.get_category(
         db, current_user.company_id, category_id
@@ -52,8 +55,10 @@ def get_category(
 @router.post("", response_model=CategoryOut, status_code=status.HTTP_201_CREATED)
 def create_category(
     payload: CategoryCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("products:write")),
 ):
     existing = category_service.get_category_by_name(
         db, current_user.company_id, payload.name
@@ -68,6 +73,17 @@ def create_category(
     category = category_service.create_category(
         db, current_user.company_id, payload
     )
+
+    record_audit(
+        db,
+        user=current_user,
+        action="category.create",
+        entity_type="category",
+        entity_id=category.id,
+        request=request,
+        details={"name": category.name},
+    )
+
     return CategoryOut.model_validate(category)
 
 
@@ -75,8 +91,10 @@ def create_category(
 def update_category(
     category_id: int,
     payload: CategoryUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("products:write")),
 ):
     category = category_service.get_category(
         db, current_user.company_id, category_id
@@ -102,14 +120,27 @@ def update_category(
         )
 
     category = category_service.update_category(db, category, payload)
+
+    record_audit(
+        db,
+        user=current_user,
+        action="category.update",
+        entity_type="category",
+        entity_id=category_id,
+        request=request,
+        details={"fields": sorted(data.keys())},
+    )
+
     return CategoryOut.model_validate(category)
 
 
 @router.delete("/{category_id}")
 def deactivate_category(
     category_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("products:write")),
 ):
     category = category_service.get_category(
         db, current_user.company_id, category_id
@@ -121,8 +152,20 @@ def deactivate_category(
             detail="Categoría no encontrada",
         )
 
+    category_name = category.name
+
     category_service.update_category(
         db, category, CategoryUpdate(is_active=False)
+    )
+
+    record_audit(
+        db,
+        user=current_user,
+        action="category.delete",
+        entity_type="category",
+        entity_id=category_id,
+        request=request,
+        details={"name": category_name},
     )
 
     return {"id": category_id, "status": "inactive"}

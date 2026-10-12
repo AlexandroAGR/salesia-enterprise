@@ -18,8 +18,10 @@ import {
   Trash2,
 } from "lucide-react";
 import Modal from "../components/Modal";
+import { useAuth } from "../context/auth-context";
 import { useSearch } from "../context/search-context";
 import { api, ApiError } from "../lib/api";
+import { can } from "../permissions";
 import type {
   Customer,
   InventoryItem,
@@ -57,6 +59,8 @@ const statusMeta: Record<Sale["status"], { label: string; cls: string }> = {
 };
 
 export default function SalesPage() {
+  const { user } = useAuth();
+  const canCreateSale = can(user?.role, "sales:create");
   const { search, setSearch } = useSearch();
   const [tab, setTab] = useState<Tab>("historial");
 
@@ -360,17 +364,19 @@ export default function SalesPage() {
             <RefreshCw size={16} className={loading ? "spin" : ""} />
             <span>Actualizar</span>
           </button>
-          <button
-            className="button-primary"
-            onClick={() => {
-              setFormError(null);
-              setCartError(null);
-              setTab("nueva");
-            }}
-          >
-            <Plus size={17} />
-            Nueva venta
-          </button>
+          {canCreateSale && (
+            <button
+              className="button-primary"
+              onClick={() => {
+                setFormError(null);
+                setCartError(null);
+                setTab("nueva");
+              }}
+            >
+              <Plus size={17} />
+              Nueva venta
+            </button>
+          )}
         </div>
       </section>
 
@@ -381,12 +387,14 @@ export default function SalesPage() {
         >
           <ShoppingCart size={16} /> Historial
         </button>
-        <button
-          className={`tab ${tab === "nueva" ? "tab-active" : ""}`}
-          onClick={() => setTab("nueva")}
-        >
-          <Plus size={16} /> Nueva venta
-        </button>
+        {canCreateSale && (
+          <button
+            className={`tab ${tab === "nueva" ? "tab-active" : ""}`}
+            onClick={() => setTab("nueva")}
+          >
+            <Plus size={16} /> Nueva venta
+          </button>
+        )}
       </div>
 
       {tab === "historial" ? (

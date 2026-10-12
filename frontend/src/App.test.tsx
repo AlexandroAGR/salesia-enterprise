@@ -8,8 +8,39 @@ const sessionUser = {
   full_name: "Administrador General",
   company_id: 1,
   role_id: 1,
+  role: "Administrador",
   is_active: true,
 };
+
+const vendedorUser = {
+  id: 3,
+  email: "vendedor@salesia.com",
+  full_name: "Vendedor Demo",
+  company_id: 1,
+  role_id: 3,
+  role: "Vendedor",
+  is_active: true,
+};
+
+function sessionFetch(user: typeof sessionUser) {
+  return vi.fn((url: string) => {
+    const path = String(url);
+
+    if (path.includes("/api/auth/me")) {
+      return Promise.resolve(jsonResponse(user));
+    }
+
+    return Promise.resolve(
+      jsonResponse({ items: [], total: 0, page: 1, page_size: 20 }),
+    );
+  });
+}
+
+function navLabels(): string[] {
+  return Array.from(document.querySelectorAll(".nav-link")).map(
+    (element) => element.textContent ?? "",
+  );
+}
 
 function jsonResponse(data: unknown, status = 200): Response {
   const body = JSON.stringify(data);
@@ -126,5 +157,42 @@ describe("App", () => {
     expect(
       await screen.findByRole("heading", { name: "Inicia sesión" }),
     ).toBeInTheDocument();
+  });
+
+  it("oculta los módulos que el rol no puede consultar", async () => {
+    localStorage.setItem("salesia_token", "token-de-prueba");
+    vi.stubGlobal("fetch", sessionFetch(vendedorUser));
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Dashboard ejecutivo" }),
+    ).toBeInTheDocument();
+
+    const labels = navLabels();
+    expect(labels).toContain("Ventas");
+    expect(labels).toContain("Clientes");
+    expect(labels).not.toContain("Insights");
+    expect(labels).not.toContain("Reportes");
+    expect(labels).not.toContain("Inventario");
+    expect(labels).not.toContain("Configuración");
+    expect(screen.queryByRole("button", { name: /explorar analytics/i })).toBe(
+      null,
+    );
+  });
+
+  it("bloquea el acceso directo a un módulo restringido", async () => {
+    localStorage.setItem("salesia_token", "token-de-prueba");
+    window.history.replaceState({}, "", "/reportes");
+    vi.stubGlobal("fetch", sessionFetch(vendedorUser));
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Acceso restringido" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Reportes" }),
+    ).not.toBeInTheDocument();
   });
 });

@@ -12,11 +12,13 @@ import {
   CreditCard,
   FileBarChart,
   Loader2,
+  Lock,
   Settings,
 } from "lucide-react";
 import { AuthProvider } from "./context/AuthContext";
 import { useAuth } from "./context/auth-context";
 import AppLayout, { ModulePlaceholder } from "./layouts/AppLayout";
+import { canAccess, type ModuleKey } from "./permissions";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import CustomersPage from "./pages/CustomersPage";
 import DashboardPage from "./pages/DashboardPage";
@@ -68,6 +70,28 @@ function LoginRoute({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+function ModuleGuard({
+  module,
+  children,
+}: {
+  module: ModuleKey;
+  children: ReactNode;
+}) {
+  const { user } = useAuth();
+
+  if (!canAccess(user?.role, module)) {
+    return (
+      <ModulePlaceholder
+        title="Acceso restringido"
+        icon={<Lock size={29} />}
+        description="Tu rol no tiene permisos para consultar este módulo. Si necesitas acceso, solicítalo al administrador del sistema."
+      />
+    );
+  }
+
+  return <>{children}</>;
+}
+
 export default function App() {
   return (
     <AuthProvider>
@@ -83,53 +107,117 @@ export default function App() {
           />
 
           <Route element={<ProtectedLayout />}>
-            <Route path="/" element={<DashboardPage />} />
-            <Route path="/clientes" element={<CustomersPage />} />
-            <Route path="/productos" element={<ProductsPage />} />
+            <Route
+              path="/"
+              element={
+                <ModuleGuard module="dashboard">
+                  <DashboardPage />
+                </ModuleGuard>
+              }
+            />
+            <Route
+              path="/clientes"
+              element={
+                <ModuleGuard module="clientes">
+                  <CustomersPage />
+                </ModuleGuard>
+              }
+            />
+            <Route
+              path="/productos"
+              element={
+                <ModuleGuard module="productos">
+                  <ProductsPage />
+                </ModuleGuard>
+              }
+            />
 
-            <Route path="/analytics" element={<AnalyticsPage />} />
-            <Route path="/insights" element={<InsightsPage />} />
-            <Route path="/ventas" element={<SalesPage />} />
+            <Route
+              path="/analytics"
+              element={
+                <ModuleGuard module="analytics">
+                  <AnalyticsPage />
+                </ModuleGuard>
+              }
+            />
+            <Route
+              path="/insights"
+              element={
+                <ModuleGuard module="insights">
+                  <InsightsPage />
+                </ModuleGuard>
+              }
+            />
+            <Route
+              path="/ventas"
+              element={
+                <ModuleGuard module="ventas">
+                  <SalesPage />
+                </ModuleGuard>
+              }
+            />
             <Route
               path="/pedidos"
               element={
-                <ModulePlaceholder
-                  title="Pedidos"
-                  icon={<FileBarChart size={29} />}
-                  description="Gestión de pedidos y su seguimiento hasta convertirse en venta."
-                />
+                <ModuleGuard module="pedidos">
+                  <ModulePlaceholder
+                    title="Pedidos"
+                    icon={<FileBarChart size={29} />}
+                    description="Gestión de pedidos y su seguimiento hasta convertirse en venta."
+                  />
+                </ModuleGuard>
               }
             />
-            <Route path="/inventario" element={<InventoryPage />} />
+            <Route
+              path="/inventario"
+              element={
+                <ModuleGuard module="inventario">
+                  <InventoryPage />
+                </ModuleGuard>
+              }
+            />
             <Route
               path="/pagos"
               element={
-                <ModulePlaceholder
-                  title="Pagos"
-                  icon={<CreditCard size={29} />}
-                  description="Registro de pagos, métodos de pago y conciliación con cada venta."
-                />
+                <ModuleGuard module="pagos">
+                  <ModulePlaceholder
+                    title="Pagos"
+                    icon={<CreditCard size={29} />}
+                    description="Registro de pagos, métodos de pago y conciliación con cada venta."
+                  />
+                </ModuleGuard>
               }
             />
-            <Route path="/reportes" element={<ReportsPage />} />
+            <Route
+              path="/reportes"
+              element={
+                <ModuleGuard module="reportes">
+                  <ReportsPage />
+                </ModuleGuard>
+              }
+            />
             <Route
               path="/configuracion"
               element={
-                <ModulePlaceholder
-                  title="Configuración"
-                  icon={<Settings size={29} />}
-                  description="Usuarios, roles, parámetros fiscales y preferencias del sistema."
-                />
+                <ModuleGuard module="configuracion">
+                  <ModulePlaceholder
+                    title="Configuración"
+                    icon={<Settings size={29} />}
+                    description="Usuarios, roles, parámetros fiscales y preferencias del sistema."
+                  />
+                </ModuleGuard>
               }
             />
             <Route
               path="/ayuda"
               element={
-                <ModulePlaceholder
-                  title="Centro de ayuda"
-                  icon={<CircleHelp size={29} />}
-                  description="Guía de uso del sistema, preguntas frecuentes y contactos de soporte."
-                />
+                <ModuleGuard module="ayuda">
+                  <ModulePlaceholder
+                    title="Centro de ayuda"
+                    icon={<CircleHelp size={29} />}
+                    description="Guía de uso del sistema, preguntas frecuentes y contactos de soporte."
+                  />
+                </ModuleGuard>
               }
             />
 

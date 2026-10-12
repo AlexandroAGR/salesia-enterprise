@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_current_user, require_permission
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.analysis import (
@@ -13,6 +13,7 @@ from app.schemas.analysis import (
 )
 from app.schemas.common import Page
 from app.services import stats_service
+from app.services.audit_service import record_audit
 from app.services.stats_service import AnalysisError
 
 router = APIRouter(
@@ -39,8 +40,10 @@ def _http_error(error: AnalysisError) -> HTTPException:
 )
 def mean_median(
     payload: MeanMedianInput,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("analyses:run")),
 ):
     """Media aritmética y mediana de una variable, con comparación."""
     try:
@@ -53,6 +56,16 @@ def mean_median(
     except AnalysisError as error:
         raise _http_error(error) from error
 
+    record_audit(
+        db,
+        user=current_user,
+        action="analysis.run",
+        entity_type="analysis",
+        entity_id=analysis["id"],
+        request=request,
+        details={"analysis_type": analysis["analysis_type"]},
+    )
+
     return analysis
 
 
@@ -63,8 +76,10 @@ def mean_median(
 )
 def random_variable(
     payload: RandomVariableInput,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("analyses:run")),
 ):
     """Esperanza, varianza y desviación de una variable aleatoria."""
     try:
@@ -79,6 +94,16 @@ def random_variable(
     except AnalysisError as error:
         raise _http_error(error) from error
 
+    record_audit(
+        db,
+        user=current_user,
+        action="analysis.run",
+        entity_type="analysis",
+        entity_id=analysis["id"],
+        request=request,
+        details={"analysis_type": analysis["analysis_type"]},
+    )
+
     return analysis
 
 
@@ -89,8 +114,10 @@ def random_variable(
 )
 def probability(
     payload: ProbabilityInput,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("analyses:run")),
 ):
     """Probabilidades condicionales e independencia de dos eventos."""
     try:
@@ -103,6 +130,16 @@ def probability(
     except AnalysisError as error:
         raise _http_error(error) from error
 
+    record_audit(
+        db,
+        user=current_user,
+        action="analysis.run",
+        entity_type="analysis",
+        entity_id=analysis["id"],
+        request=request,
+        details={"analysis_type": analysis["analysis_type"]},
+    )
+
     return analysis
 
 
@@ -113,8 +150,10 @@ def probability(
 )
 def bayes(
     payload: BayesInput,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("analyses:run")),
 ):
     """Teorema de Bayes: posterior P(A|B) reproducible."""
     try:
@@ -126,6 +165,16 @@ def bayes(
         )
     except AnalysisError as error:
         raise _http_error(error) from error
+
+    record_audit(
+        db,
+        user=current_user,
+        action="analysis.run",
+        entity_type="analysis",
+        entity_id=analysis["id"],
+        request=request,
+        details={"analysis_type": analysis["analysis_type"]},
+    )
 
     return analysis
 
@@ -141,6 +190,7 @@ def list_analyses(
     page_size: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("analyses:view")),
 ):
     items, total = stats_service.list_analyses(
         db,
@@ -160,6 +210,7 @@ def get_analysis(
     analysis_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("analyses:view")),
 ):
     try:
         analysis = stats_service.get_analysis(

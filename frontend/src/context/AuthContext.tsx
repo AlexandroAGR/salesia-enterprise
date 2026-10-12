@@ -45,6 +45,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    // Registra el cierre de sesión en auditoría (Fase 13); si falla,
+    // la sesión local se cierra igualmente.
+    void api.post<void>("/auth/logout").catch(() => undefined);
+
     localStorage.removeItem(TOKEN_KEY);
     setUser(null);
     setLoading(false);

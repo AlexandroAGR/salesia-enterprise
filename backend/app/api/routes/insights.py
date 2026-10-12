@@ -1,14 +1,15 @@
 """Endpoints de insights empresariales – Fase 11."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_current_user, require_permission
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.common import Page
 from app.schemas.insight import GenerateIn, GenerateOut, InsightOut, RuleInfoOut
 from app.services import insight_service
+from app.services.audit_service import record_audit
 from app.services.insight_service import InsightError
 
 router = APIRouter(
@@ -27,7 +28,9 @@ def _http_error(error: InsightError) -> HTTPException:
 
 
 @router.get("/rules", response_model=list[RuleInfoOut])
-def list_rules() -> list[RuleInfoOut]:
+def list_rules(
+    _: User = Depends(require_permission("insights:view")),
+) -> list[RuleInfoOut]:
     """Catálogo de reglas deterministas del motor de insights."""
     return insight_service.rules_catalog()
 
@@ -46,6 +49,7 @@ def list_insights(
     page_size: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("insights:view")),
 ) -> Page[InsightOut]:
     """Histórico paginado de insights con filtros opcionales."""
     try:
@@ -68,9 +72,11 @@ def list_insights(
 
 @router.post("/generate", response_model=GenerateOut)
 def generate_insights(
+    request: Request,
     payload: GenerateIn | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(require_permission("insights:generate")),
 ) -> GenerateOut:
     """Ejecuta las reglas y guarda solo las observaciones nuevas."""
     try:
@@ -79,4 +85,18 @@ def generate_insights(
         )
     except InsightError as error:
         raise _http_error(error) from None
+
+    record_audit(
+        db,
+        user=current_user,
+        action="insight.generate",
+        entity_type="insight",
+        entity_id="-",
+        request=request,
+        details={
+            "created": len(result.get("created", [])),
+            "skipped": result.get("skipped", 0),
+        },
+    )
+
     return GenerateOut(**result)
