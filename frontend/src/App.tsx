@@ -25,6 +25,7 @@ import ProductsPage from "./pages/ProductsPage";
 import "./index.css";
 import InventoryPage from "./pages/InventoryPage";
 import InsightsPage from "./pages/InsightsPage";
+import ReportsPage from "./pages/ReportsPage";
 import SalesPage from "./pages/SalesPage";
 
 function FullScreenLoader({ label }: { label: string }) {
@@ -110,16 +111,7 @@ export default function App() {
                 />
               }
             />
-            <Route
-              path="/reportes"
-              element={
-                <ModulePlaceholder
-                  title="Reportes"
-                  icon={<FileBarChart size={29} />}
-                  description="Reportes comerciales y estadísticos con exportación y vista imprimible."
-                />
-              }
-            />
+            <Route path="/reportes" element={<ReportsPage />} />
             <Route
               path="/configuracion"
               element={

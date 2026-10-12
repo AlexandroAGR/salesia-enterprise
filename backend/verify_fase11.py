@@ -8,8 +8,9 @@ paginación, las validaciones y el aislamiento multiempresa.
 
 Requisitos:
   - Backend corriendo en :8000 con seeds (runner SQLite o PostgreSQL).
-  - Ejecutarlo el PRIMERO sobre una BD fresca; después se lanzan como
-    regresión verify_fase10, verify_fase09 y verify_fase08.
+  - Ejecutar tras verify_fase12 (el primero de la cadena sobre una BD
+    fresca); después se lanzan como regresión verify_fase10,
+    verify_fase09 y verify_fase08.
 
 Uso:
   PYTHONPATH=$PWD .venv/bin/python verify_fase11.py

@@ -618,6 +618,7 @@ CREATE TABLE reports (
     title VARCHAR(180) NOT NULL,
 
     filters JSONB NOT NULL DEFAULT '{}'::jsonb,
+    content JSONB NOT NULL DEFAULT '{}'::jsonb,
 
     file_path TEXT,
 

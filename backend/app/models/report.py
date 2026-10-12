@@ -40,6 +40,13 @@ class Report(Base):
         default=dict,
     )
 
+    # Instantánea del contenido calculado al generar el reporte (Fase 12)
+    content: Mapped[dict] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+    )
+
     file_path: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,

@@ -371,3 +371,92 @@ export interface GenerateInsightsResult {
   created: Insight[];
   skipped: number;
 }
+
+// -----------------------------------------------------------
+// Reportes (Fase 12)
+// -----------------------------------------------------------
+export type ReportTypeCode =
+  | "ventas"
+  | "estadistico"
+  | "productos"
+  | "clientes"
+  | "vendedores";
+
+export interface ReportTypeInfo {
+  code: string;
+  name: string;
+  description: string;
+}
+
+export interface ReportScope {
+  date_from: string | null;
+  date_to: string | null;
+  seller_id?: number | null;
+  category_id?: number | null;
+}
+
+export interface ReportRow {
+  sale_number?: string;
+  sold_at?: string;
+  customer?: string;
+  seller?: string;
+  product?: string;
+  status?: string;
+  subtotal?: number;
+  discount_amount?: number;
+  tax_amount?: number;
+  total_amount?: number;
+  revenue?: number;
+  sales_count?: number;
+  quantity?: number | null;
+  avg_ticket?: number;
+  share_pct?: number;
+  last_purchase?: string | null;
+}
+
+export interface ReportTotals {
+  revenue?: number;
+  sales_count?: number;
+  products_count?: number;
+  customers_count?: number;
+  sellers_count?: number;
+  units?: number;
+}
+
+export interface ReportSummaryMetrics {
+  sales_count: number;
+  revenue: number;
+  avg_ticket: number;
+  customers_count: number;
+  items_sold: number;
+}
+
+export interface ReportContent {
+  scope: ReportScope;
+  summary?: ReportSummaryMetrics;
+  kpis?: ReportSummaryMetrics;
+  statistics?: Record<string, number | null>;
+  previous_period?: {
+    revenue: number;
+    sales_count: number;
+    revenue_change_pct: number | null;
+  } | null;
+  interpretation?: string[];
+  totals?: ReportTotals;
+  rows?: ReportRow[];
+}
+
+export interface ReportSummary {
+  id: number;
+  report_type: string;
+  report_type_label: string;
+  title: string;
+  filters: Record<string, unknown>;
+  created_by: number | null;
+  created_by_name: string | null;
+  created_at: string;
+}
+
+export interface Report extends ReportSummary {
+  content: ReportContent;
+}

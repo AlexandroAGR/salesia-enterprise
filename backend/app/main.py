@@ -18,6 +18,7 @@ from app.api.routes.datasets import router as datasets_router
 from app.api.routes.analyses import router as analyses_router
 from app.api.routes.analytics import router as analytics_router
 from app.api.routes.insights import router as insights_router
+from app.api.routes.reports import router as reports_router
 
 
 app = FastAPI(
@@ -55,6 +56,7 @@ app.include_router(datasets_router)
 app.include_router(analyses_router)
 app.include_router(analytics_router)
 app.include_router(insights_router)
+app.include_router(reports_router)
 
 
 @app.get("/", tags=["Sistema"])

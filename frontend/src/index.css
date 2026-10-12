@@ -2386,3 +2386,71 @@ textarea.form-input {
   font-size: 11px;
   white-space: nowrap;
 }
+
+/* ============================================================
+   Fase 12: reportes
+   ============================================================ */
+.report-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #eef1f6;
+  color: #6b7a94;
+  font-size: 12.5px;
+}
+
+.report-interpretation {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: #3b4a63;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.report-interpretation li + li {
+  margin-top: 4px;
+}
+
+/* Vista imprimible: sólo el reporte abierto, sin cromo de la app */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .modal-overlay,
+  .modal-overlay * {
+    visibility: visible;
+  }
+
+  .modal-overlay {
+    position: absolute;
+    inset: 0;
+    background: #fff;
+    padding: 0;
+    overflow: visible;
+  }
+
+  .modal {
+    max-height: none;
+    box-shadow: none;
+    border: none;
+    overflow: visible;
+  }
+
+  .modal-body {
+    overflow: visible;
+    max-height: none;
+  }
+
+  .table-scroll {
+    overflow: visible;
+  }
+
+  .no-print,
+  .modal-header .icon-button {
+    display: none !important;
+  }
+}
