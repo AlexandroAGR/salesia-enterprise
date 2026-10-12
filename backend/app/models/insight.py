@@ -1,6 +1,13 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, String, Text
+from sqlalchemy import (
+    BigInteger,
+    DateTime,
+    ForeignKey,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -9,6 +16,14 @@ from app.models.base import Base
 
 class Insight(Base):
     __tablename__ = "insights"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "company_id",
+            "fingerprint",
+            name="uq_insights_company_fingerprint",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(
         BigInteger,
@@ -32,6 +47,26 @@ class Insight(Base):
             ondelete="SET NULL",
         ),
         nullable=True,
+    )
+
+    dataset_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey(
+            "datasets.id",
+            name="fk_insights_dataset",
+            ondelete="SET NULL",
+        ),
+        nullable=True,
+    )
+
+    rule_code: Mapped[str] = mapped_column(
+        String(40),
+        nullable=False,
+    )
+
+    fingerprint: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
     )
 
     title: Mapped[str] = mapped_column(

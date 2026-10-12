@@ -337,3 +337,37 @@ export interface AnalyticsFilterOptions {
   sellers: AnalyticsFilterOption[];
   categories: AnalyticsFilterOption[];
 }
+
+// -----------------------------------------------------------
+// Insights empresariales (Fase 11)
+// -----------------------------------------------------------
+export type InsightSeverity = "info" | "positive" | "warning";
+
+export type InsightSource = "ventas" | "analisis";
+
+export interface InsightRule {
+  code: string;
+  name: string;
+  description: string;
+  source: InsightSource;
+}
+
+export interface Insight {
+  id: number;
+  rule_code: string;
+  rule_name: string;
+  title: string;
+  description: string;
+  severity: InsightSeverity;
+  evidence: Record<string, unknown>;
+  analysis_id: number | null;
+  analysis_type: AnalysisType | null;
+  dataset_id: number | null;
+  dataset_name: string | null;
+  created_at: string;
+}
+
+export interface GenerateInsightsResult {
+  created: Insight[];
+  skipped: number;
+}

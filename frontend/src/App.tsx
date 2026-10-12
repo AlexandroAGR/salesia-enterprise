@@ -11,7 +11,6 @@ import {
   Command,
   CreditCard,
   FileBarChart,
-  Lightbulb,
   Loader2,
   Settings,
 } from "lucide-react";
@@ -25,6 +24,7 @@ import LoginPage from "./pages/LoginPage";
 import ProductsPage from "./pages/ProductsPage";
 import "./index.css";
 import InventoryPage from "./pages/InventoryPage";
+import InsightsPage from "./pages/InsightsPage";
 import SalesPage from "./pages/SalesPage";
 
 function FullScreenLoader({ label }: { label: string }) {
@@ -87,16 +87,7 @@ export default function App() {
             <Route path="/productos" element={<ProductsPage />} />
 
             <Route path="/analytics" element={<AnalyticsPage />} />
-            <Route
-              path="/insights"
-              element={
-                <ModulePlaceholder
-                  title="Insights"
-                  icon={<Lightbulb size={29} />}
-                  description="Observaciones generadas a partir de reglas estadísticas, con evidencia numérica y vínculo al análisis que las origina."
-                />
-              }
-            />
+            <Route path="/insights" element={<InsightsPage />} />
             <Route path="/ventas" element={<SalesPage />} />
             <Route
               path="/pedidos"

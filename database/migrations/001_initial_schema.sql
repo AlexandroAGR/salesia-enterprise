@@ -576,6 +576,10 @@ CREATE TABLE insights (
 
     company_id BIGINT NOT NULL,
     analysis_id BIGINT,
+    dataset_id BIGINT,
+
+    rule_code VARCHAR(40) NOT NULL,
+    fingerprint VARCHAR(64) NOT NULL,
 
     title VARCHAR(180) NOT NULL,
     description TEXT NOT NULL,
@@ -593,7 +597,15 @@ CREATE TABLE insights (
     CONSTRAINT fk_insights_analysis
         FOREIGN KEY (analysis_id)
         REFERENCES statistical_analyses(id)
-        ON DELETE SET NULL
+        ON DELETE SET NULL,
+
+    CONSTRAINT fk_insights_dataset
+        FOREIGN KEY (dataset_id)
+        REFERENCES datasets(id)
+        ON DELETE SET NULL,
+
+    CONSTRAINT uq_insights_company_fingerprint
+        UNIQUE (company_id, fingerprint)
 );
 
 
