@@ -247,3 +247,93 @@ export interface StatisticalAnalysis {
   results: StatisticalResult[];
   bayes: BayesResult | null;
 }
+
+// -----------------------------------------------------------
+// Analítica de ventas (Fase 10 · Dashboard Analytics)
+// -----------------------------------------------------------
+export interface AnalyticsSummaryFilters {
+  date_from: string | null;
+  date_to: string | null;
+  seller_id: number | null;
+  category_id: number | null;
+}
+
+export interface AnalyticsKpis {
+  revenue: number;
+  sales_count: number;
+  avg_ticket: number;
+  customers_count: number;
+  items_sold: number;
+}
+
+export interface AnalyticsStatistics {
+  count: number;
+  mean: number | null;
+  median: number | null;
+  min: number | null;
+  max: number | null;
+  stddev: number | null;
+}
+
+export interface AnalyticsPreviousPeriod {
+  revenue: number;
+  sales_count: number;
+  revenue_change_pct: number | null;
+}
+
+export interface AnalyticsSummary {
+  filters: AnalyticsSummaryFilters;
+  kpis: AnalyticsKpis;
+  statistics: AnalyticsStatistics;
+  previous_period: AnalyticsPreviousPeriod | null;
+}
+
+export interface AnalyticsSeriesPoint {
+  bucket: string;
+  sales_count: number;
+  revenue: number;
+}
+
+export interface AnalyticsSeries {
+  granularity: string;
+  items: AnalyticsSeriesPoint[];
+}
+
+export interface AnalyticsBreakdownItem {
+  id: number | null;
+  label: string;
+  revenue: number;
+  sales_count: number;
+  quantity: number | null;
+}
+
+export interface AnalyticsBreakdown {
+  group_by: string;
+  items: AnalyticsBreakdownItem[];
+}
+
+export interface AnalyticsFrequencyBin {
+  bin_start: number;
+  bin_end: number;
+  frequency: number;
+  relative: number;
+}
+
+export interface AnalyticsFrequencies {
+  count: number;
+  min: number | null;
+  max: number | null;
+  mean: number | null;
+  median: number | null;
+  bins: AnalyticsFrequencyBin[];
+}
+
+export interface AnalyticsFilterOption {
+  id: number;
+  name: string;
+}
+
+export interface AnalyticsFilterOptions {
+  sellers: AnalyticsFilterOption[];
+  categories: AnalyticsFilterOption[];
+}

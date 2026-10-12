@@ -8,6 +8,8 @@ type MetricCardProps = {
   icon: ReactNode;
   color: string;
   description: string;
+  /** Dirección de la tendencia; por defecto depende del color. */
+  trend?: "up" | "down";
 };
 
 export default function MetricCard({
@@ -17,8 +19,10 @@ export default function MetricCard({
   icon,
   color,
   description,
+  trend,
 }: MetricCardProps) {
-  const TrendIcon = color === "orange" ? ArrowDownRight : ArrowUpRight;
+  const direction = trend ?? (color === "orange" ? "down" : "up");
+  const TrendIcon = direction === "down" ? ArrowDownRight : ArrowUpRight;
 
   return (
     <article className="metric-card">

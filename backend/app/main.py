@@ -16,6 +16,7 @@ from app.api.routes.inventory import router as inventory_router
 from app.api.routes.payments import router as payments_router
 from app.api.routes.datasets import router as datasets_router
 from app.api.routes.analyses import router as analyses_router
+from app.api.routes.analytics import router as analytics_router
 
 
 app = FastAPI(
@@ -51,6 +52,7 @@ app.include_router(inventory_router)
 app.include_router(payments_router)
 app.include_router(datasets_router)
 app.include_router(analyses_router)
+app.include_router(analytics_router)
 
 
 @app.get("/", tags=["Sistema"])

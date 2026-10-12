@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Activity,
@@ -8,6 +8,7 @@ import {
   ChevronDown,
   CreditCard,
   Download,
+  Filter,
   Plus,
   ShoppingCart,
   Sparkles,
@@ -18,6 +19,8 @@ import {
 import {
   Area,
   AreaChart,
+  Bar,
+  BarChart,
   CartesianGrid,
   Cell,
   Pie,
@@ -29,81 +32,308 @@ import {
 } from "recharts";
 import MetricCard from "../components/MetricCard";
 import { useSearch } from "../context/search-context";
-import { money } from "../utils/format";
+import { api, ApiError } from "../lib/api";
+import type {
+  AnalyticsBreakdownItem,
+  AnalyticsFilterOptions,
+  AnalyticsFrequencies,
+  AnalyticsSeries,
+  AnalyticsSummary,
+  Page,
+  Sale,
+} from "../types";
+import { formatDate, initials, money } from "../utils/format";
 
-const revenueData = [
-  { day: "01 Sep", sales: 8200, previous: 6100 },
-  { day: "04 Sep", sales: 10500, previous: 7200 },
-  { day: "07 Sep", sales: 9100, previous: 6800 },
-  { day: "10 Sep", sales: 14200, previous: 9300 },
-  { day: "13 Sep", sales: 11800, previous: 8400 },
-  { day: "16 Sep", sales: 16500, previous: 10500 },
-  { day: "19 Sep", sales: 13900, previous: 9600 },
-  { day: "22 Sep", sales: 18800, previous: 12800 },
-  { day: "25 Sep", sales: 15700, previous: 11100 },
-  { day: "28 Sep", sales: 22100, previous: 14300 },
+// -----------------------------------------------------------
+// Configuración de periodos
+// -----------------------------------------------------------
+const PERIODS: Record<
+  string,
+  { days?: number; months?: number; granularity: "day" | "week" | "month" }
+> = {
+  "7 días": { days: 7, granularity: "day" },
+  "30 días": { days: 30, granularity: "day" },
+  "90 días": { days: 90, granularity: "week" },
+  "12 meses": { months: 12, granularity: "month" },
+};
+
+const CATEGORY_COLORS = [
+  "#2563eb",
+  "#06b6d4",
+  "#818cf8",
+  "#34d399",
+  "#fbbf24",
+  "#cbd5e1",
 ];
 
-const categoryData = [
-  { name: "Tecnología", value: 38, color: "#2563eb" },
-  { name: "Accesorios", value: 27, color: "#06b6d4" },
-  { name: "Oficina", value: 20, color: "#818cf8" },
-  { name: "Otros", value: 15, color: "#cbd5e1" },
-];
+const STATUS_LABELS: Record<string, string> = {
+  draft: "Borrador",
+  pending: "Pendiente",
+  completed: "Completada",
+  cancelled: "Cancelada",
+  refunded: "Reembolsada",
+};
 
-const transactions = [
-  {
-    name: "María Fernanda",
-    initials: "MF",
-    email: "maria.fernanda@example.com",
-    product: "Laptop empresarial",
-    date: "30 sep, 09:42",
-    amount: 3299,
-    status: "Completada",
-    color: "blue",
-  },
-  {
-    name: "Carlos Mendoza",
-    initials: "CM",
-    email: "carlos.m@example.com",
-    product: "Monitor 27 pulgadas",
-    date: "30 sep, 09:18",
-    amount: 899,
-    status: "Pendiente",
-    color: "violet",
-  },
-  {
-    name: "Lucía Ramírez",
-    initials: "LR",
-    email: "lucia.r@example.com",
-    product: "Teclado mecánico",
-    date: "30 sep, 08:56",
-    amount: 249,
-    status: "Completada",
-    color: "cyan",
-  },
-  {
-    name: "Diego Torres",
-    initials: "DT",
-    email: "diego.t@example.com",
-    product: "Mouse inalámbrico",
-    date: "29 sep, 17:31",
-    amount: 129,
-    status: "Cancelada",
-    color: "orange",
-  },
-];
+const EMPTY_STATISTICS = {
+  count: 0,
+  mean: null,
+  median: null,
+  min: null,
+  max: null,
+  stddev: null,
+};
 
+function toISODate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function periodRange(period: string) {
+  const config = PERIODS[period] ?? PERIODS["30 días"];
+  const end = new Date();
+  const start = new Date();
+
+  if (config.months) {
+    start.setMonth(start.getMonth() - config.months);
+    start.setDate(start.getDate() + 1);
+  } else {
+    start.setDate(start.getDate() - ((config.days ?? 30) - 1));
+  }
+
+  return {
+    date_from: toISODate(start),
+    date_to: toISODate(end),
+    granularity: config.granularity,
+  };
+}
+
+/** "2026-10-12" → "10-12"; "2026-10" → "10" (etiqueta compacta del eje). */
+function bucketLabel(bucket: string): string {
+  return bucket.slice(5);
+}
+
+function changeInfo(
+  current: number,
+  previous: number | null | undefined,
+): { text: string; trend?: "up" | "down" } {
+  if (previous === null || previous === undefined) {
+    return { text: "Sin periodo anterior" };
+  }
+  if (previous === 0) {
+    return current > 0
+      ? { text: "Sin base de comparación", trend: "up" }
+      : { text: "Sin ventas en el periodo" };
+  }
+
+  const pct = ((current - previous) / previous) * 100;
+  const formatted = pct.toLocaleString("es-PE", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
+  return {
+    text: `${pct > 0 ? "+" : ""}${formatted}% vs. periodo anterior`,
+    trend: pct < 0 ? "down" : "up",
+  };
+}
+
+function moneyOrDash(value: number | null | undefined): string {
+  return value === null || value === undefined ? "—" : money(value);
+}
+
+function compactNumber(value: number): string {
+  return value.toLocaleString("es-PE", { maximumFractionDigits: 0 });
+}
+
+// -----------------------------------------------------------
+// Página
+// -----------------------------------------------------------
 export default function DashboardPage() {
   const navigate = useNavigate();
   const { search, setSearch } = useSearch();
-  const [period, setPeriod] = useState("30 días");
 
-  const filteredTransactions = transactions.filter((item) =>
-    `${item.name} ${item.product} ${item.email}`
-      .toLowerCase()
-      .includes(search.toLowerCase()),
+  const [period, setPeriod] = useState("30 días");
+  const [sellerId, setSellerId] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+
+  const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
+  const [series, setSeries] = useState<AnalyticsSeries | null>(null);
+  const [byProduct, setByProduct] = useState<AnalyticsBreakdownItem[]>([]);
+  const [byCategory, setByCategory] = useState<AnalyticsBreakdownItem[]>([]);
+  const [bySeller, setBySeller] = useState<AnalyticsBreakdownItem[]>([]);
+  const [frequencies, setFrequencies] =
+    useState<AnalyticsFrequencies | null>(null);
+  const [options, setOptions] = useState<AnalyticsFilterOptions | null>(null);
+  const [recentSales, setRecentSales] = useState<Sale[]>([]);
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const range = useMemo(() => periodRange(period), [period]);
+
+  // -----------------------------------------------------------
+  // Cargas de datos
+  // -----------------------------------------------------------
+  const loadDashboard = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    const query = {
+      date_from: range.date_from,
+      date_to: range.date_to,
+      seller_id: sellerId ? Number(sellerId) : undefined,
+      category_id: categoryId ? Number(categoryId) : undefined,
+    };
+
+    try {
+      const [
+        nextSummary,
+        nextSeries,
+        nextProducts,
+        nextCategories,
+        nextSellers,
+        nextFrequencies,
+      ] = await Promise.all([
+        api.get<AnalyticsSummary>("/analytics/summary", { query }),
+        api.get<AnalyticsSeries>("/analytics/series", {
+          query: { ...query, granularity: range.granularity },
+        }),
+        api.get<{ items: AnalyticsBreakdownItem[] }>("/analytics/breakdown", {
+          query: { ...query, group_by: "product", limit: 5 },
+        }),
+        api.get<{ items: AnalyticsBreakdownItem[] }>("/analytics/breakdown", {
+          query: { ...query, group_by: "category", limit: 6 },
+        }),
+        api.get<{ items: AnalyticsBreakdownItem[] }>("/analytics/breakdown", {
+          query: { ...query, group_by: "seller", limit: 6 },
+        }),
+        api.get<AnalyticsFrequencies>("/analytics/frequencies", { query }),
+      ]);
+
+      setSummary(nextSummary);
+      setSeries(nextSeries);
+      setByProduct(
+        Array.isArray(nextProducts?.items) ? nextProducts.items : [],
+      );
+      setByCategory(
+        Array.isArray(nextCategories?.items) ? nextCategories.items : [],
+      );
+      setBySeller(Array.isArray(nextSellers?.items) ? nextSellers.items : []);
+      setFrequencies(nextFrequencies);
+    } catch (caught) {
+      setSummary(null);
+      setSeries(null);
+      setFrequencies(null);
+      setByProduct([]);
+      setByCategory([]);
+      setBySeller([]);
+      setError(
+        caught instanceof ApiError
+          ? caught.message
+          : "No se pudo cargar el dashboard.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [range, sellerId, categoryId]);
+
+  const loadOptions = useCallback(async () => {
+    try {
+      setOptions(await api.get<AnalyticsFilterOptions>("/analytics/filters"));
+    } catch {
+      setOptions(null);
+    }
+  }, []);
+
+  const loadRecentSales = useCallback(async () => {
+    try {
+      const result = await api.get<Page<Sale>>("/sales", {
+        query: {
+          search: search.trim() || undefined,
+          page: 1,
+          page_size: 5,
+        },
+      });
+      setRecentSales(Array.isArray(result?.items) ? result.items : []);
+    } catch {
+      setRecentSales([]);
+    }
+  }, [search]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadDashboard(), 0);
+    return () => window.clearTimeout(timer);
+  }, [loadDashboard]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadOptions(), 0);
+    return () => window.clearTimeout(timer);
+  }, [loadOptions]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadRecentSales(), 250);
+    return () => window.clearTimeout(timer);
+  }, [loadRecentSales]);
+
+  // -----------------------------------------------------------
+  // Datos derivados
+  // -----------------------------------------------------------
+  const kpis = summary?.kpis ?? {
+    revenue: 0,
+    sales_count: 0,
+    avg_ticket: 0,
+    customers_count: 0,
+    items_sold: 0,
+  };
+  const statistics = summary?.statistics ?? EMPTY_STATISTICS;
+  const previous = summary?.previous_period ?? null;
+
+  const revenueChange = changeInfo(kpis.revenue, previous?.revenue);
+  const salesChange = changeInfo(kpis.sales_count, previous?.sales_count);
+
+  const sellerOptions = Array.isArray(options?.sellers) ? options.sellers : [];
+  const categoryOptions = Array.isArray(options?.categories)
+    ? options.categories
+    : [];
+
+  const seriesItems = Array.isArray(series?.items) ? series.items : [];
+  const revenuePoints = seriesItems.map((point) => ({
+    label: bucketLabel(point.bucket),
+    sales: point.revenue,
+  }));
+
+  const categoryTotal = byCategory.reduce(
+    (sum, item) => sum + item.revenue,
+    0,
   );
+  const categoryData = byCategory.map((item, index) => ({
+    name: item.label,
+    revenue: item.revenue,
+    share:
+      categoryTotal > 0
+        ? Math.round((item.revenue / categoryTotal) * 100)
+        : 0,
+    color: CATEGORY_COLORS[index % CATEGORY_COLORS.length],
+  }));
+  const leadingCategory = categoryData[0];
+
+  const productPoints = byProduct.map((item) => ({
+    name: item.label,
+    revenue: item.revenue,
+  }));
+  const sellerPoints = bySeller.map((item) => ({
+    name: item.label,
+    revenue: item.revenue,
+  }));
+
+  const frequencyBins = Array.isArray(frequencies?.bins)
+    ? frequencies.bins
+    : [];
+  const histogramPoints = frequencyBins.map((bin) => ({
+    range: `${compactNumber(bin.bin_start)}–${compactNumber(bin.bin_end)}`,
+    frequency: bin.frequency,
+  }));
 
   return (
     <>
@@ -144,8 +374,8 @@ export default function DashboardPage() {
           </div>
           <h2>Los datos cuentan una historia.</h2>
           <p>
-            Conecta tus operaciones y descubre qué sucede en tu negocio a
-            través de la analítica comercial.
+            Tus KPIs, gráficos y distribuciones se calculan en vivo sobre las
+            ventas registradas en el sistema.
           </p>
         </div>
         <div className="welcome-art" aria-hidden="true">
@@ -165,170 +395,198 @@ export default function DashboardPage() {
           <h2>Resumen comercial</h2>
           <p>Indicadores principales del periodo seleccionado</p>
         </div>
-        <label className="period-select">
-          <CalendarDays size={16} />
-          <select
-            value={period}
-            onChange={(event) => setPeriod(event.target.value)}
-            aria-label="Periodo de los indicadores"
-          >
-            <option>7 días</option>
-            <option>30 días</option>
-            <option>90 días</option>
-            <option>12 meses</option>
-          </select>
-          <ChevronDown size={15} />
-        </label>
+        <div className="dashboard-filters">
+          <label className="period-select">
+            <CalendarDays size={16} />
+            <select
+              value={period}
+              onChange={(event) => setPeriod(event.target.value)}
+              aria-label="Periodo de los indicadores"
+            >
+              {Object.keys(PERIODS).map((option) => (
+                <option key={option}>{option}</option>
+              ))}
+            </select>
+            <ChevronDown size={15} />
+          </label>
+          <label className="period-select">
+            <Users size={16} />
+            <select
+              value={sellerId}
+              onChange={(event) => setSellerId(event.target.value)}
+              aria-label="Vendedor"
+            >
+              <option value="">Todos los vendedores</option>
+              {sellerOptions.map((seller) => (
+                <option key={seller.id} value={seller.id}>
+                  {seller.name}
+                </option>
+              ))}
+            </select>
+            <ChevronDown size={15} />
+          </label>
+          <label className="period-select">
+            <Filter size={16} />
+            <select
+              value={categoryId}
+              onChange={(event) => setCategoryId(event.target.value)}
+              aria-label="Categoría"
+            >
+              <option value="">Todas las categorías</option>
+              {categoryOptions.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+            <ChevronDown size={15} />
+          </label>
+        </div>
       </section>
+
+      {error && (
+        <div className="form-alert" role="alert">
+          <strong>No se pudo cargar el dashboard:</strong> {error}
+        </div>
+      )}
 
       <section className="metrics-grid">
         <MetricCard
           title="Ingresos por ventas"
-          value={money(0)}
-          change="Sin datos"
+          value={summary ? money(kpis.revenue) : "—"}
+          change={revenueChange.text}
+          trend={revenueChange.trend}
           icon={<CreditCard size={19} />}
           color="blue"
           description="Importe registrado en ventas"
         />
         <MetricCard
           title="Ventas registradas"
-          value="0"
-          change="Sin datos"
+          value={summary ? String(kpis.sales_count) : "—"}
+          change={salesChange.text}
+          trend={salesChange.trend}
           icon={<ShoppingCart size={19} />}
           color="cyan"
-          description="Transacciones registradas"
+          description="Transacciones en el periodo"
         />
         <MetricCard
           title="Clientes"
-          value="0"
-          change="Sin datos"
+          value={summary ? String(kpis.customers_count) : "—"}
+          change="Periodo seleccionado"
           icon={<Users size={19} />}
           color="violet"
-          description="Clientes registrados"
+          description="Clientes con compras"
         />
         <MetricCard
           title="Ticket promedio"
-          value={money(0)}
-          change="Sin datos"
+          value={summary ? money(kpis.avg_ticket) : "—"}
+          change="Promedio por venta"
           icon={<Target size={19} />}
           color="orange"
-          description="Promedio por transacción"
+          description="Importe medio por transacción"
         />
       </section>
 
-      <div className="demo-notice">
-        <Activity size={17} />
-        <span>
-          <strong>Vista inicial:</strong> los indicadores se muestran en cero
-          hasta conectar la base de datos y registrar ventas. Los gráficos
-          siguientes son datos ilustrativos de diseño.
-        </span>
-      </div>
+      {!loading && !error && summary && kpis.sales_count === 0 && (
+        <div className="demo-notice">
+          <Activity size={17} />
+          <span>
+            <strong>Sin ventas:</strong> no hay ventas en el periodo
+            seleccionado (ni con los filtros aplicados). Registra una venta o
+            cambia el periodo.
+          </span>
+        </div>
+      )}
 
       <section className="analytics-grid">
         <article className="panel revenue-panel">
           <div className="panel-header">
             <div>
               <h3>Evolución de ingresos</h3>
-              <p>Ejemplo visual · valores en soles</p>
+              <p>Ingresos registrados · valores en soles</p>
             </div>
-            <button
-              className="icon-button panel-menu"
-              aria-label="Opciones del gráfico"
-              onClick={() =>
-                alert("El gráfico usará datos reales al integrar la API.")
-              }
-            >
-              <Download size={17} />
-            </button>
           </div>
           <div className="chart-legend">
             <span>
-              <i className="legend-dot legend-current" /> Periodo actual
-            </span>
-            <span>
-              <i className="legend-dot legend-previous" /> Periodo anterior
+              <i className="legend-dot legend-current" /> Ingresos del periodo
             </span>
           </div>
-          <div className="revenue-chart">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart
-                data={revenueData}
-                margin={{ top: 12, right: 4, left: -15, bottom: 0 }}
-              >
-                <defs>
-                  <linearGradient
-                    id="salesGradient"
-                    x1="0"
-                    y1="0"
-                    x2="0"
-                    y2="1"
-                  >
-                    <stop
-                      offset="0%"
-                      stopColor="#2563eb"
-                      stopOpacity={0.2}
-                    />
-                    <stop
-                      offset="95%"
-                      stopColor="#2563eb"
-                      stopOpacity={0}
-                    />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid
-                  stroke="#edf0f5"
-                  vertical={false}
-                  strokeDasharray="4 4"
-                />
-                <XAxis
-                  dataKey="day"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#8994a7", fontSize: 11 }}
-                  dy={10}
-                  minTickGap={22}
-                />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#8994a7", fontSize: 11 }}
-                  tickFormatter={(value: number) =>
-                    value === 0 ? "0" : `${value / 1000}k`
-                  }
-                />
-                <Tooltip
-                  formatter={(value) => money(Number(value))}
-                  contentStyle={{
-                    border: "1px solid #e8edf5",
-                    borderRadius: 12,
-                    fontSize: 12,
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="previous"
-                  stroke="#a5b4fc"
-                  strokeWidth={2}
-                  strokeDasharray="5 5"
-                  fill="transparent"
-                  name="Periodo anterior"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="sales"
-                  stroke="#2563eb"
-                  strokeWidth={2.5}
-                  fill="url(#salesGradient)"
-                  name="Periodo actual"
-                  activeDot={{ r: 5, strokeWidth: 0 }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+          {revenuePoints.length > 0 ? (
+            <div className="revenue-chart">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart
+                  data={revenuePoints}
+                  margin={{ top: 12, right: 4, left: -15, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient
+                      id="salesGradient"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop
+                        offset="0%"
+                        stopColor="#2563eb"
+                        stopOpacity={0.2}
+                      />
+                      <stop
+                        offset="95%"
+                        stopColor="#2563eb"
+                        stopOpacity={0}
+                      />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid
+                    stroke="#edf0f5"
+                    vertical={false}
+                    strokeDasharray="4 4"
+                  />
+                  <XAxis
+                    dataKey="label"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "#8994a7", fontSize: 11 }}
+                    dy={10}
+                    minTickGap={22}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "#8994a7", fontSize: 11 }}
+                    tickFormatter={(value: number) =>
+                      value === 0 ? "0" : `${value / 1000}k`
+                    }
+                  />
+                  <Tooltip
+                    formatter={(value) => money(Number(value))}
+                    contentStyle={{
+                      border: "1px solid #e8edf5",
+                      borderRadius: 12,
+                      fontSize: 12,
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="sales"
+                    stroke="#2563eb"
+                    strokeWidth={2.5}
+                    fill="url(#salesGradient)"
+                    name="Ingresos"
+                    activeDot={{ r: 5, strokeWidth: 0 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <p className="no-results">
+              Sin ventas en el periodo seleccionado.
+            </p>
+          )}
           <div className="chart-footnote">
             <span className="footnote-dot" />
-            Datos ilustrativos, no corresponden a transacciones reales.
+            Los periodos sin ventas se muestran en cero · moneda: PEN (S/).
           </div>
         </article>
 
@@ -336,7 +594,7 @@ export default function DashboardPage() {
           <div className="panel-header">
             <div>
               <h3>Ventas por categoría</h3>
-              <p>Distribución ilustrativa</p>
+              <p>Reparto de ingresos por categoría</p>
             </div>
             <button
               className="icon-button panel-menu"
@@ -346,49 +604,263 @@ export default function DashboardPage() {
               <ArrowRight size={17} />
             </button>
           </div>
-          <div className="donut-wrap">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={categoryData}
-                  dataKey="value"
-                  nameKey="name"
-                  innerRadius="66%"
-                  outerRadius="88%"
-                  paddingAngle={4}
-                  stroke="none"
-                >
-                  {categoryData.map((entry) => (
-                    <Cell key={entry.name} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value) => `${value}%`} />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="donut-center">
-              <strong>100%</strong>
-              <span>Ejemplo</span>
+          {categoryData.length > 0 ? (
+            <>
+              <div className="donut-wrap">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={categoryData}
+                      dataKey="revenue"
+                      nameKey="name"
+                      innerRadius="66%"
+                      outerRadius="88%"
+                      paddingAngle={4}
+                      stroke="none"
+                    >
+                      {categoryData.map((entry) => (
+                        <Cell key={entry.name} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => money(Number(value))} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="donut-center">
+                  <strong>{leadingCategory?.share ?? 0}%</strong>
+                  <span>Categoría líder</span>
+                </div>
+              </div>
+              <div className="category-legend">
+                {categoryData.map((category) => (
+                  <div className="category-row" key={category.name}>
+                    <span className="category-name">
+                      <i style={{ background: category.color }} />
+                      {category.name}
+                    </span>
+                    <strong>{category.share}%</strong>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="no-results">Sin ventas por categoría.</p>
+          )}
+        </article>
+      </section>
+
+      <section className="dashboard-secondary">
+        <article className="panel">
+          <div className="panel-header">
+            <div>
+              <h3>Ventas por producto</h3>
+              <p>Top ingresos por producto</p>
             </div>
           </div>
-          <div className="category-legend">
-            {categoryData.map((category) => (
-              <div className="category-row" key={category.name}>
-                <span className="category-name">
-                  <i style={{ background: category.color }} />
-                  {category.name}
-                </span>
-                <strong>{category.value}%</strong>
-              </div>
-            ))}
+          {productPoints.length > 0 ? (
+            <div className="revenue-chart">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  layout="vertical"
+                  data={productPoints}
+                  margin={{ top: 10, right: 12, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid
+                    stroke="#edf0f5"
+                    horizontal={false}
+                    vertical={false}
+                    strokeDasharray="4 4"
+                  />
+                  <XAxis type="number" hide />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={118}
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "#8994a7", fontSize: 10 }}
+                  />
+                  <Tooltip
+                    formatter={(value) => money(Number(value))}
+                    contentStyle={{
+                      border: "1px solid #e8edf5",
+                      borderRadius: 12,
+                      fontSize: 12,
+                    }}
+                  />
+                  <Bar
+                    dataKey="revenue"
+                    fill="#2563eb"
+                    radius={[0, 6, 6, 0]}
+                    barSize={14}
+                    name="Ingresos"
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <p className="no-results">Sin ventas por producto.</p>
+          )}
+        </article>
+
+        <article className="panel">
+          <div className="panel-header">
+            <div>
+              <h3>Ventas por vendedor</h3>
+              <p>Ingresos por usuario que registró</p>
+            </div>
+          </div>
+          {sellerPoints.length > 0 ? (
+            <div className="revenue-chart">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  layout="vertical"
+                  data={sellerPoints}
+                  margin={{ top: 10, right: 12, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid
+                    stroke="#edf0f5"
+                    horizontal={false}
+                    vertical={false}
+                    strokeDasharray="4 4"
+                  />
+                  <XAxis type="number" hide />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={118}
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "#8994a7", fontSize: 10 }}
+                  />
+                  <Tooltip
+                    formatter={(value) => money(Number(value))}
+                    contentStyle={{
+                      border: "1px solid #e8edf5",
+                      borderRadius: 12,
+                      fontSize: 12,
+                    }}
+                  />
+                  <Bar
+                    dataKey="revenue"
+                    fill="#06b6d4"
+                    radius={[0, 6, 6, 0]}
+                    barSize={14}
+                    name="Ingresos"
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <p className="no-results">Sin ventas por vendedor.</p>
+          )}
+        </article>
+
+        <article className="panel">
+          <div className="panel-header">
+            <div>
+              <h3>Distribución de montos</h3>
+              <p>Frecuencia de los importes de venta</p>
+            </div>
+          </div>
+          {histogramPoints.length > 0 ? (
+            <div className="revenue-chart">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={histogramPoints}
+                  margin={{ top: 10, right: 4, left: -20, bottom: 0 }}
+                >
+                  <CartesianGrid
+                    stroke="#edf0f5"
+                    vertical={false}
+                    strokeDasharray="4 4"
+                  />
+                  <XAxis
+                    dataKey="range"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "#8994a7", fontSize: 9 }}
+                    interval={0}
+                  />
+                  <YAxis
+                    allowDecimals={false}
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "#8994a7", fontSize: 11 }}
+                  />
+                  <Tooltip
+                    formatter={(value) => `${value} ventas`}
+                    labelFormatter={(label) => `Montos S/ ${label}`}
+                    contentStyle={{
+                      border: "1px solid #e8edf5",
+                      borderRadius: 12,
+                      fontSize: 12,
+                    }}
+                  />
+                  <Bar
+                    dataKey="frequency"
+                    fill="#818cf8"
+                    radius={[6, 6, 0, 0]}
+                    barSize={26}
+                    name="Ventas"
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <p className="no-results">Sin montos que distribuir.</p>
+          )}
+          <div className="chart-footnote">
+            <span className="footnote-dot" />
+            Media: {moneyOrDash(statistics.mean)} · Mediana:{" "}
+            {moneyOrDash(statistics.median)}
           </div>
         </article>
+      </section>
+
+      <section className="panel stats-panel">
+        <div className="panel-header">
+          <div>
+            <h3>Media y mediana del periodo</h3>
+            <p>Estadística descriptiva de los importes de venta</p>
+          </div>
+        </div>
+        <div className="stats-grid">
+          <div className="stat-item">
+            <span>Ventas analizadas</span>
+            <strong>{statistics.count}</strong>
+          </div>
+          <div className="stat-item">
+            <span>Unidades vendidas</span>
+            <strong>{kpis.items_sold}</strong>
+          </div>
+          <div className="stat-item">
+            <span>Media</span>
+            <strong>{moneyOrDash(statistics.mean)}</strong>
+          </div>
+          <div className="stat-item">
+            <span>Mediana</span>
+            <strong>{moneyOrDash(statistics.median)}</strong>
+          </div>
+          <div className="stat-item">
+            <span>Mínimo</span>
+            <strong>{moneyOrDash(statistics.min)}</strong>
+          </div>
+          <div className="stat-item">
+            <span>Máximo</span>
+            <strong>{moneyOrDash(statistics.max)}</strong>
+          </div>
+          <div className="stat-item">
+            <span>Desviación típica</span>
+            <strong>{moneyOrDash(statistics.stddev)}</strong>
+          </div>
+        </div>
       </section>
 
       <section className="panel transactions-panel">
         <div className="panel-header transaction-heading">
           <div>
             <h3>Actividad comercial</h3>
-            <p>Ejemplo de presentación de transacciones</p>
+            <p>Últimas ventas registradas en el sistema</p>
           </div>
           <button
             className="text-button"
@@ -402,51 +874,61 @@ export default function DashboardPage() {
             <thead>
               <tr>
                 <th>CLIENTE</th>
-                <th>PRODUCTO</th>
+                <th>N° VENTA</th>
                 <th>FECHA</th>
                 <th>IMPORTE</th>
                 <th>ESTADO</th>
               </tr>
             </thead>
             <tbody>
-              {filteredTransactions.map((item) => (
-                <tr key={item.email}>
-                  <td>
-                    <div className="customer-cell">
-                      <div
-                        className={`customer-avatar avatar-${item.color}`}
+              {recentSales.map((sale) => {
+                const label = STATUS_LABELS[sale.status] ?? sale.status;
+                return (
+                  <tr key={sale.id}>
+                    <td>
+                      <div className="customer-cell">
+                        <div className="customer-avatar avatar-blue">
+                          {sale.customer_name
+                            ? initials(sale.customer_name)
+                            : "SC"}
+                        </div>
+                        <div className="customer-copy">
+                          <strong>{sale.customer_name ?? "Sin cliente"}</strong>
+                          <span>{sale.currency}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td>{sale.sale_number}</td>
+                    <td className="date-cell">{formatDate(sale.sold_at)}</td>
+                    <td className="amount-cell">
+                      {money(sale.total_amount)}
+                    </td>
+                    <td>
+                      <span
+                        className={`status status-${label.toLowerCase()}`}
                       >
-                        {item.initials}
-                      </div>
-                      <div className="customer-copy">
-                        <strong>{item.name}</strong>
-                        <span>{item.email}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>{item.product}</td>
-                  <td className="date-cell">{item.date}</td>
-                  <td className="amount-cell">{money(item.amount)}</td>
-                  <td>
-                    <span
-                      className={`status status-${item.status.toLowerCase()}`}
-                    >
-                      <i />
-                      {item.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+                        <i />
+                        {label}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
-          {filteredTransactions.length === 0 && (
+          {recentSales.length === 0 && (
             <p className="no-results">
-              No se encontraron coincidencias para "{search}".
+              {search
+                ? `No se encontraron coincidencias para "${search}".`
+                : "Todavía no hay ventas registradas."}
             </p>
           )}
         </div>
         <div className="table-footer">
-          <span>4 filas ilustrativas · Sin conexión a la base de datos</span>
+          <span>
+            {recentSales.length} de las ventas más recientes
+            {search ? ` · búsqueda: "${search}"` : ""}
+          </span>
           <button className="text-button" onClick={() => setSearch("")}>
             Limpiar búsqueda
           </button>
@@ -458,11 +940,11 @@ export default function DashboardPage() {
           <Sparkles size={21} />
         </div>
         <div>
-          <span className="insight-kicker">PRÓXIMAMENTE · ANALYTICS</span>
+          <span className="insight-kicker">MÓDULO ANALYTICS · EN VIVO</span>
           <h3>De los registros a los insights</h3>
           <p>
-            Analizaremos media, mediana, distribuciones y probabilidades
-            sobre las operaciones guardadas en PostgreSQL.
+            Media, mediana, distribuciones y probabilidades calculadas sobre
+            las operaciones guardadas en el sistema.
           </p>
         </div>
         <button
