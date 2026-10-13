@@ -1,5 +1,13 @@
 export const TOKEN_KEY = "salesia_token";
 
+// URL base de la API. Vacío en desarrollo (usa el proxy de Vite);
+// en producción se fija con VITE_API_BASE_URL en tiempo de build
+// (p. ej. https://salesia-api.onrender.com).
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(
+  /\/+$/,
+  "",
+);
+
 export class ApiError extends Error {
   status: number;
   detail: unknown;
@@ -47,7 +55,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   let response: Response;
 
   try {
-    response = await fetch(`/api${path}${buildQuery(options.query)}`, {
+    response = await fetch(`${API_BASE_URL}/api${path}${buildQuery(options.query)}`, {
       method: options.method ?? "GET",
       headers,
       body: options.body !== undefined ? JSON.stringify(options.body) : undefined,

@@ -1,0 +1,46 @@
+# Blueprint de Render para SalesIA Enterprise
+#
+# Servicios:
+#   · salesia-api  → FastAPI (Web Service, Python 3.12)
+#   · salesia-web  → React/Vite compilado (Static Site)
+#
+# Variables que debes crear en el panel de Render (Blueprint → Environment):
+#   · DATABASE_URL  → cadena de conexión de Supabase (postgresql+psycopg://…:6543/postgres)
+#   · JWT_SECRET_KEY → clave secreta aleatoria de ≥ 32 caracteres
+#   · CORS_ORIGINS  → URL del frontend desplegado, p. ej. https://salesia-web.onrender.com
+#
+# El frontend usa VITE_API_BASE_URL en tiempo de build para llamar a la API.
+
+services:
+  - type: web
+    name: salesia-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.11"
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: APP_ENV
+        value: production
+      - key: CORS_ORIGINS
+        sync: false
+
+  - type: web
+    name: salesia-web
+    runtime: static
+    plan: free
+    staticPublishPath: frontend/dist
+    buildCommand: npm install --prefix frontend && npm run build --prefix frontend
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # URL de la API (sin barra final). Sustituye tras crear salesia-api.
+      - key: VITE_API_BASE_URL
+        sync: false
