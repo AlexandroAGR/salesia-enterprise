@@ -11,6 +11,9 @@ __pycache__/
 .pytest_cache/
 .coverage
 
+# BD SQLite temporal (runner de desarrollo sin PostgreSQL)
+*.db
+
 # Variables de entorno
 .env
 
