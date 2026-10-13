@@ -54,6 +54,18 @@ psql -U postgres -f database/seeds/002_admin_user.sql            # usuario admin
 
 Configuración en `backend/.env` (plantilla en `backend/.env.example`).
 
+## Despliegue en Vercel
+
+Dos proyectos en Vercel apuntando a este mismo repositorio:
+
+| Proyecto | Root Directory | Runtime | Variables de entorno |
+|---|---|---|---|
+| `salesia-api` | `backend/` | Python (FastAPI, detectado automáticamente) | `DATABASE_URL`, `JWT_SECRET_KEY`, `CORS_ORIGINS` |
+| `salesia-web` | `frontend/` | Vite (estático) | `VITE_API_BASE_URL` (build time) = URL de `salesia-api` |
+
+`CORS_ORIGINS` debe incluir la URL de `salesia-web`; el frontend llama a la API
+con la URL absoluta (en desarrollo sigue usando el proxy de Vite).
+
 ## Comandos de calidad
 
 ```bash

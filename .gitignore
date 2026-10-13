@@ -17,6 +17,9 @@ __pycache__/
 # Variables de entorno
 .env
 
+# Enlace de proyecto del CLI de Vercel
+.vercel
+
 # Logs y editores
 logs
 *.log
@@ -29,3 +32,7 @@ logs
 *.njsproj
 *.sln
 *.sw?
+
+# Copias locales de .env (pueden contener credenciales)
+.env.bak
+.env.*.bak
