@@ -9,14 +9,33 @@ Frontend **React + TypeScript (Vite)** · Backend **Python / FastAPI** · Base d
 
 ## Estado actual
 
-| Fase | Estado |
+**Las 16 fases del plan están completadas.** El sistema está desplegado y
+verificado en producción (Vercel + Render + Supabase).
+
+| Bloque | Fases | Estado |
+|---|---|---|
+| Análisis, arquitectura y diseño | 01–03 | ✅ |
+| Base de datos PostgreSQL | 04 | ✅ |
+| Backend/API y frontend React | 05–06 | ✅ |
+| Módulos comerciales (clientes, productos, ventas, pagos, inventario) | 07–08 | ✅ |
+| Analítica (estadística, dashboard, insights, reportes) | 09–12 | ✅ |
+| Seguridad, auditoría y pruebas | 13–14 | ✅ 115 + 37 pruebas automatizadas |
+| Despliegue y documentación | 15–16 | ✅ |
+
+## Documentación
+
+Guías completas del sistema en [`docs/`](docs/), disponibles también en PDF en
+[`docs/pdf/`](docs/pdf/):
+
+| Documento | Contenido |
 |---|---|
-| 01–04 · Análisis, arquitectura, UX/UI y modelo de datos | ✅ Completadas |
-| 05 · Backend/API | 🟡 Auth + CRUD de clientes/productos/categorías |
-| 06 · Frontend React | 🟡 Router, login, cliente API, páginas CRUD |
-| 07 · Clientes y productos | ✅ Completada |
-| 08 · Ventas, pagos e inventario | 🔴 En curso |
-| 09–16 · Estadística, Analytics, Insights, Reportes, RBAC, pruebas, despliegue, manuales | 🔴 Pendientes |
+| [Manual de usuario](docs/manual-usuario.md) | Uso de los módulos según cada rol |
+| [Manual técnico](docs/manual-tecnico.md) | Arquitectura, configuración y solución de problemas |
+| [Documentación API](docs/api.md) | 42 rutas, convenciones y matriz de acceso por rol |
+| [Diagrama final](docs/diagrama-final.md) | Arquitectura, modelo entidad-relación y flujo de venta |
+| [Diccionario de datos](docs/diccionario-datos.md) | 23 tablas · 191 columnas |
+| [Evidencias de pruebas](docs/evidencias-pruebas.md) | Resultados de las suites y verificación |
+| [Plan de mantenimiento](docs/plan-mantenimiento.md) | Operación, copias de seguridad y evolución |
 
 ## Arranque rápido
 
@@ -81,5 +100,14 @@ npm test         # pruebas de frontend (Vitest + Testing Library)
 frontend/   frontend React (router, contextos, páginas, cliente API, pruebas)
 backend/    API FastAPI (api/ routers · services/ negocio · models/ SQLAlchemy)
 database/   migraciones y seeds SQL
-docs/       documentación técnica por fases
+docs/       documentación (Markdown + PDF en docs/pdf/ · diagramas en docs/img/)
+scripts/    utilidades (generador de PDF de la documentación)
+```
+
+## Comandos de documentación
+
+```bash
+python3 -m venv .venv-docs
+.venv-docs/bin/pip install -r scripts/requirements-docs.txt
+.venv-docs/bin/python scripts/generar_pdf.py docs/   # regenera docs/pdf/*.pdf
 ```

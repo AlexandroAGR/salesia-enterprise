@@ -1,0 +1,9 @@
+# Dependencias del generador de PDF de la documentación (docs/ → docs/pdf/)
+# Instalación:
+#   python3 -m venv .venv-docs
+#   .venv-docs/bin/pip install -r scripts/requirements-docs.txt
+#
+# WeasyPrint necesita las librerías del sistema pango/cairo (en Debian/Ubuntu:
+#   sudo apt install libpango-1.0-0 libpangocairo-1.0-0 fonts-dejavu-core)
+weasyprint>=61
+markdown>=3.5
