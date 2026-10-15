@@ -9,7 +9,6 @@ import {
 import {
   CircleHelp,
   Command,
-  CreditCard,
   FileBarChart,
   Loader2,
   Lock,
@@ -27,6 +26,7 @@ import ProductsPage from "./pages/ProductsPage";
 import "./index.css";
 import InventoryPage from "./pages/InventoryPage";
 import InsightsPage from "./pages/InsightsPage";
+import PaymentsPage from "./pages/PaymentsPage";
 import ReportsPage from "./pages/ReportsPage";
 import SalesPage from "./pages/SalesPage";
 
@@ -180,11 +180,7 @@ export default function App() {
               path="/pagos"
               element={
                 <ModuleGuard module="pagos">
-                  <ModulePlaceholder
-                    title="Pagos"
-                    icon={<CreditCard size={29} />}
-                    description="Registro de pagos, métodos de pago y conciliación con cada venta."
-                  />
+                  <PaymentsPage />
                 </ModuleGuard>
               }
             />

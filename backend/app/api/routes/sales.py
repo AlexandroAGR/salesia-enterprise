@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
@@ -29,8 +31,14 @@ def _http_error(error: SaleError) -> HTTPException:
     )
 
 
-def _sale_out(sale, customer_name: str | None = None) -> SaleOut:
-    """Arma el JSON de la venta con nombres derivados."""
+def _sale_out(
+    sale,
+    customer_name: str | None = None,
+    amount_paid: Decimal = Decimal("0"),
+) -> SaleOut:
+    """Arma el JSON de la venta con nombres derivados y saldo."""
+    balance = sale.total_amount - amount_paid
+
     return SaleOut(
         id=sale.id,
         sale_number=sale.sale_number,
@@ -42,6 +50,8 @@ def _sale_out(sale, customer_name: str | None = None) -> SaleOut:
         discount_amount=sale.discount_amount,
         tax_amount=sale.tax_amount,
         total_amount=sale.total_amount,
+        amount_paid=amount_paid,
+        balance=balance if balance > 0 else Decimal("0"),
         notes=sale.notes,
         sold_at=sale.sold_at,
         created_at=sale.created_at,
@@ -57,6 +67,7 @@ def list_sales(
         pattern="^(draft|pending|completed|cancelled|refunded)$",
     ),
     customer_id: int | None = Query(default=None, ge=1),
+    has_balance: bool = Query(default=False),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -68,12 +79,17 @@ def list_sales(
         search=search,
         status_filter=status_filter,
         customer_id=customer_id,
+        has_balance=has_balance,
         page=page,
         page_size=page_size,
     )
 
     customer_names = sale_service.get_customer_names(
         db, {sale.customer_id for sale in items if sale.customer_id}
+    )
+
+    paid_amounts = sale_service.get_paid_amounts(
+        db, {sale.id for sale in items}
     )
 
     return Page[SaleOut](
@@ -83,6 +99,7 @@ def list_sales(
                 customer_names.get(sale.customer_id)
                 if sale.customer_id
                 else None,
+                paid_amounts.get(sale.id, Decimal("0")),
             )
             for sale in items
         ],
@@ -109,9 +126,11 @@ def get_sale(
     customer_names = sale_service.get_customer_names(
         db, {sale.customer_id} if sale.customer_id else set()
     )
+    paid_amounts = sale_service.get_paid_amounts(db, {sale_id})
     base = _sale_out(
         sale,
         customer_names.get(sale.customer_id) if sale.customer_id else None,
+        paid_amounts.get(sale_id, Decimal("0")),
     ).model_dump()
 
     details = sale_service.get_sale_details(db, sale_id)

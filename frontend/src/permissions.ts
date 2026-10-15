@@ -69,6 +69,7 @@ const ACTION_ACCESS: Record<string, string[]> = {
   "categories:create": ["Administrador", "Almacén"],
   "sales:create": ["Administrador", "Vendedor"],
   "inventory:create": ["Administrador", "Almacén"],
+  "payments:create": ["Administrador", "Vendedor"],
 };
 
 /** ¿Puede el rol abrir este módulo? Rol desconocido → sin acceso. */

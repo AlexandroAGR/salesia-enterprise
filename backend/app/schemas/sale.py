@@ -57,6 +57,8 @@ class SaleOut(BaseModel):
     discount_amount: Decimal
     tax_amount: Decimal
     total_amount: Decimal
+    amount_paid: Decimal = Decimal("0")
+    balance: Decimal = Decimal("0")
     notes: str | None
     sold_at: datetime
     created_at: datetime

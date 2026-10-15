@@ -17,6 +17,7 @@ class PaymentResponse(BaseModel):
 
     id: int
     sale_id: int
+    sale_number: str | None = None
     payment_method_id: int
     amount: Decimal
     currency: str

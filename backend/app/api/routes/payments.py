@@ -22,6 +22,7 @@ def _payment_out(payment, sale_number: str | None = None) -> PaymentResponse:
     return PaymentResponse(
         id=payment.id,
         sale_id=payment.sale_id,
+        sale_number=sale_number,
         payment_method_id=payment.payment_method_id,
         amount=payment.amount,
         currency=payment.currency,
@@ -61,6 +62,7 @@ def list_payments(
         alias="status",
         pattern="^(pending|paid|failed|refunded)$",
     ),
+    search: str | None = Query(default=None, min_length=1, max_length=100),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -72,12 +74,16 @@ def list_payments(
         current_user.company_id,
         sale_id=sale_id,
         status_filter=status_filter,
+        search=search,
         page=page,
         page_size=page_size,
     )
 
     return Page[PaymentResponse](
-        items=[_payment_out(payment) for payment, _ in rows],
+        items=[
+            _payment_out(payment, sale_number)
+            for payment, sale_number in rows
+        ],
         total=total,
         page=page,
         page_size=page_size,
@@ -121,4 +127,5 @@ def create_payment(
         details={"sale_id": payment.sale_id, "amount": str(payment.amount)},
     )
 
-    return _payment_out(payment)
+    sale = payment_service.get_sale(db, current_user.company_id, payment.sale_id)
+    return _payment_out(payment, sale.sale_number if sale else None)

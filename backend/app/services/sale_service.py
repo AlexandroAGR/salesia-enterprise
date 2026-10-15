@@ -53,6 +53,7 @@ def list_sales(
     search: str | None = None,
     status_filter: str | None = None,
     customer_id: int | None = None,
+    has_balance: bool = False,
     page: int = 1,
     page_size: int = 20,
 ) -> tuple[list[Sale], int]:
@@ -71,6 +72,25 @@ def list_sales(
                 Sale.sale_number.ilike(term),
                 Sale.notes.ilike(term),
             )
+        )
+
+    if has_balance:
+        # Ventas con saldo pendiente: total − pagos 'paid' > 0.
+        # Subconsulta correlacionada (no un join) para no multiplicar filas.
+        # Excluye canceladas y reembolsadas, que no admiten cobro.
+        paid = (
+            select(func.coalesce(func.sum(Payment.amount), 0))
+            .where(
+                Payment.sale_id == Sale.id,
+                Payment.status == "paid",
+            )
+            .scalar_subquery()
+        )
+        filters.extend(
+            [
+                Sale.status.notin_(["cancelled", "refunded"]),
+                (Sale.total_amount - paid) > 0,
+            ]
         )
 
     total = db.execute(
@@ -367,3 +387,31 @@ def get_customer_names(
     ).all()
 
     return {customer_id: name for customer_id, name in rows}
+
+
+def get_paid_amounts(
+    db: Session, sale_ids: set[int]
+) -> dict[int, Decimal]:
+    """Mapa {sale_id: total pagado} en una sola consulta agregada.
+
+    Sólo se cuentan los pagos en estado 'paid'. Una venta sin pagos no
+    aparece en el mapa (se interpreta como 0).
+    """
+    if not sale_ids:
+        return {}
+
+    rows = db.execute(
+        select(
+            Payment.sale_id,
+            func.coalesce(func.sum(Payment.amount), 0),
+        )
+        .where(
+            Payment.sale_id.in_(sale_ids),
+            Payment.status == "paid",
+        )
+        .group_by(Payment.sale_id)
+    ).all()
+
+    return {
+        sale_id: Decimal(str(amount)) for sale_id, amount in rows
+    }

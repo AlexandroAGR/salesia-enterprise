@@ -90,6 +90,10 @@ export interface Sale {
   discount_amount: string;
   tax_amount: string;
   total_amount: string;
+  /** Suma de los pagos en estado 'paid'. */
+  amount_paid: string;
+  /** Total − amount_paid, sin bajar de 0. */
+  balance: string;
   notes: string | null;
   sold_at: string;
   created_at: string;
@@ -139,6 +143,29 @@ export interface PaymentMethod {
   code: string;
   is_active: boolean;
 }
+
+export type PaymentStatus = "pending" | "paid" | "failed" | "refunded";
+
+export interface Payment {
+  id: number;
+  sale_id: number;
+  sale_number: string | null;
+  payment_method_id: number;
+  amount: string;
+  currency: string;
+  status: PaymentStatus;
+  reference: string | null;
+  paid_at: string | null;
+  created_at: string;
+}
+
+export type PaymentInput = {
+  sale_id: number;
+  payment_method_id: number;
+  amount: string;
+  currency: string;
+  reference?: string | null;
+};
 
 export interface InventoryItem {
   product_id: number;

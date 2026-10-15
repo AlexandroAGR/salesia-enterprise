@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.payment import Payment
@@ -54,6 +54,7 @@ def list_payments(
     *,
     sale_id: int | None = None,
     status_filter: str | None = None,
+    search: str | None = None,
     page: int = 1,
     page_size: int = 20,
 ) -> tuple[list[tuple[Payment, str]], int]:
@@ -65,6 +66,15 @@ def list_payments(
 
     if status_filter:
         filters.append(Payment.status == status_filter)
+
+    if search:
+        term = f"%{search.strip()}%"
+        filters.append(
+            or_(
+                Payment.reference.ilike(term),
+                Sale.sale_number.ilike(term),
+            )
+        )
 
     total = db.execute(
         select(func.count())

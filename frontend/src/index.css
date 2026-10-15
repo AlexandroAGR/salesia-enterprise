@@ -1927,6 +1927,30 @@ textarea.form-input {
   margin: 14px 20px 0;
 }
 
+.summary-box {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.summary-box > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13.5px;
+}
+
+.summary-box span {
+  color: #64748b;
+}
+
+.summary-box strong {
+  font-variant-numeric: tabular-nums;
+}
+
 .input-with-icon {
   position: relative;
   display: flex;
